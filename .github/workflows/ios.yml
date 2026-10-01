@@ -54,7 +54,8 @@ jobs:
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload MapleBrowser-iOS.ipa
           cd ..
           test -s artifacts/MapleBrowser-iOS.ipa
-          /usr/bin/unzip -tq artifacts/MapleBrowser-iOS.ipa
+          /usr/bin/ditto -x -k artifacts/MapleBrowser-iOS.ipa /tmp/maple-ipa-test
+          test -f "/tmp/maple-ipa-test/Payload/Maple Browser.app/MapleBrowser"
 
       - name: Upload iOS build
         uses: actions/upload-artifact@v4
