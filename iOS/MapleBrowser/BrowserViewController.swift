@@ -367,6 +367,7 @@ private final class MapleTabsViewController: UIViewController {
     private let onSelect: (Int) -> Void
     private let onNewTab: (Bool) -> Void
     private let onClose: (WKWebView) -> Void
+
     private let scrollView = UIScrollView()
     private let stack = UIStackView()
     private var cardViews: [UIView] = []
@@ -415,16 +416,17 @@ private final class MapleTabsViewController: UIViewController {
         header.addSubview(privateButton)
         header.addSubview(close)
 
-        stack.axis = .vertical
-        stack.alignment = .center
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        scrollView.alwaysBounceVertical = true
-        scrollView.showsVerticalScrollIndicator = false
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.alwaysBounceHorizontal = true
+        scrollView.decelerationRate = .fast
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(stack)
         view.addSubview(scrollView)
+
+        stack.axis = .horizontal
+        stack.alignment = .center
+        stack.spacing = -150
+        stack.translatesAutoresizingMaskIntoConstraints = false
 
         let newButton = UIButton(type: .system)
         newButton.setTitle("＋ New Tab", for: .normal)
@@ -455,19 +457,19 @@ private final class MapleTabsViewController: UIViewController {
             privateButton.widthAnchor.constraint(equalToConstant: 36),
             privateButton.heightAnchor.constraint(equalToConstant: 36),
 
-            scrollView.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 10),
+            scrollView.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 12),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: newButton.topAnchor, constant: -12),
-
-            stack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 18),
-            stack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -24),
-            stack.centerXAnchor.constraint(equalTo: scrollView.frameLayoutGuide.centerXAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: newButton.topAnchor, constant: -16),
 
             newButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
             newButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
             newButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
-            newButton.heightAnchor.constraint(equalToConstant: 48)
+            newButton.heightAnchor.constraint(equalToConstant: 48),
+
+            stack.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
+            stack.heightAnchor.constraint(equalTo: scrollView.heightAnchor)
         ])
 
         for index in tabs.indices {
@@ -527,8 +529,8 @@ private final class MapleTabsViewController: UIViewController {
         cardViews.append(card)
 
         NSLayoutConstraint.activate([
-            card.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.84),
-            card.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.52),
+            card.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.72),
+            card.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.66),
 
             preview.topAnchor.constraint(equalTo: card.topAnchor),
             preview.leadingAnchor.constraint(equalTo: card.leadingAnchor),
@@ -550,22 +552,20 @@ private final class MapleTabsViewController: UIViewController {
             close.heightAnchor.constraint(equalToConstant: 32)
         ])
 
-        card.transform = index == activeIndex ? .identity : CGAffineTransform(scaleX: 0.94, y: 0.94)
-        card.alpha = index == activeIndex ? 1 : 0.88
+        card.transform = index == activeIndex ? .identity : CGAffineTransform(scaleX: 0.92, y: 0.92)
+        card.alpha = index == activeIndex ? 1 : 0.72
         card.layer.shouldRasterize = true
         card.layer.rasterizationScale = UIScreen.main.scale
     }
 
-    private func privateTabTitle(for index: Int) -> String {
-        return ""
-    }
+    private func privateTabTitle(for index: Int) -> String { "" }
 
     private func scrollToActive(animated: Bool) {
         guard activeIndex < cardViews.count else { return }
         let card = cardViews[activeIndex]
         let rect = card.convert(card.bounds, to: scrollView)
-        let targetY = max(0, rect.midY - scrollView.bounds.height / 2)
-        scrollView.setContentOffset(CGPoint(x: 0, y: targetY), animated: animated)
+        let targetX = max(0, rect.midX - scrollView.bounds.width / 2)
+        scrollView.setContentOffset(CGPoint(x: targetX, y: 0), animated: animated)
     }
 
     @objc private func selectCard(_ gesture: UITapGestureRecognizer) {
@@ -579,8 +579,6 @@ private final class MapleTabsViewController: UIViewController {
         let card = cardViews[index]
         let tab = tabs[index]
 
-        // Keep each card's animator independent so several cards can close together.
-        // The spring timing is closer to UIKit's natural, physical-feeling transitions.
         let animator = UIViewPropertyAnimator(duration: 0.42, dampingRatio: 0.86) {
             card.transform = CGAffineTransform(scaleX: 0.86, y: 0.86)
                 .translatedBy(x: 0, y: 18)
@@ -589,26 +587,14 @@ private final class MapleTabsViewController: UIViewController {
         animator.addCompletion { [weak self, weak card] _ in
             card?.removeFromSuperview()
             self?.onClose(tab)
-            UIViewPropertyAnimator(duration: 0.32, dampingRatio: 0.9) {
-                self?.view.layoutIfNeeded()
-            }.startAnimation()
         }
         animator.startAnimation()
     }
 
-    @objc private func dismissTabs() {
-        dismiss(animated: true)
-    }
-
-    @objc private func newTab() {
-        onNewTab(false)
-    }
-
-    @objc private func newPrivateTab() {
-        onNewTab(true)
-    }
+    @objc private func dismissTabs() { dismiss(animated: true) }
+    @objc private func newTab() { onNewTab(false) }
+    @objc private func newPrivateTab() { onNewTab(true) }
 }
-
 
 private final class ActionPanelViewController: UIViewController {
     private let panelTitle: String
