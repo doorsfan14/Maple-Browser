@@ -1,0 +1,18 @@
+plugins { id 'com.android.application' }
+
+def minSdkVersion = 22
+
+android {
+    namespace 'net.teamceleste.maple'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'net.teamceleste.maple'
+        minSdk minSdkVersion
+        targetSdk 35
+        versionCode 1
+        versionName "0.1.0"
+    }
+}
+
+dependencies { }
