@@ -2,7 +2,7 @@ import UIKit
 import WebKit
 import Foundation
 
-final class BrowserViewController: UIViewController, WKNavigationDelegate, UISearchBarDelegate, WKUIDelegate {
+final class BrowserViewController: UIViewController, WKNavigationDelegate, UISearchBarDelegate, WKUIDelegate, WKScriptMessageHandler {
     private let addressBar = UISearchBar()
     private let content = UIView()
     private let bottomBar = UIStackView()
