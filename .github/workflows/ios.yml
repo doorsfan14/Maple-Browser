@@ -40,21 +40,35 @@ jobs:
 
       - name: Package IPA
         run: |
-          set -e
-          rm -rf artifacts /tmp/maple-ipa-test
+          set -euo pipefail
+          rm -rf artifacts
           mkdir -p artifacts/Payload
+
           APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -path "*/Build/Products/Release-iphoneos/Maple Browser.app" -print -quit)"
           test -n "$APP_PATH"
-          cp -R "$APP_PATH" artifacts/Payload/
-          test -f "artifacts/Payload/Maple Browser.app/MapleBrowser"
-          test -x "artifacts/Payload/Maple Browser.app/MapleBrowser"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "artifacts/Payload/Maple Browser.app/Info.plist" | grep -qx "MapleBrowser"
-          file "artifacts/Payload/Maple Browser.app/MapleBrowser"
+
+          cp -R "$APP_PATH" "artifacts/Payload/Maple Browser.app"
+
+          APP="artifacts/Payload/Maple Browser.app"
+          EXEC="$APP/Maple Browser"
+
+          test -f "$EXEC"
+          test -x "$EXEC"
+
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Info.plist" | grep -qx "Maple Browser"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -qx "net.teamceleste.maple"
+          /usr/libexec/PlistBuddy -c "Print :CFBundlePackageType" "$APP/Info.plist" | grep -qx "APPL"
+          /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP/Info.plist" | grep -qx "13.0"
+
+          file "$EXEC"
+          lipo -info "$EXEC"
+
           cd artifacts
-          /usr/bin/zip -qry MapleBrowser-iOS.ipa Payload
+          /usr/bin/zip -r -X MapleBrowser-iOS.ipa Payload
           cd ..
+
           test -s artifacts/MapleBrowser-iOS.ipa
-          /usr/bin/zip -T artifacts/MapleBrowser-iOS.ipa
+          /usr/bin/unzip -t artifacts/MapleBrowser-iOS.ipa
 
       - name: Upload iOS build
         uses: actions/upload-artifact@v4
