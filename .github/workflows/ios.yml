@@ -42,7 +42,7 @@ jobs:
           cd artifacts
           /usr/bin/zip -qry MapleBrowser-iOS.ipa Payload
           cd ..
-          unzip -l artifacts/MapleBrowser-iOS.ipa
+          test -f artifacts/MapleBrowser-iOS.ipa
           test -s artifacts/MapleBrowser-iOS.ipa
 
       - name: Upload iOS build
