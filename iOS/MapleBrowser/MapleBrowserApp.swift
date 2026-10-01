@@ -9,6 +9,7 @@ final class MapleBrowserApp: UIResponder, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         let window = UIWindow(frame: UIScreen.main.bounds)
+        window.overrideUserInterfaceStyle = .unspecified
         window.rootViewController = BrowserViewController()
         self.window = window
         window.makeKeyAndVisible()
