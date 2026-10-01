@@ -45,4 +45,4 @@ Maple Browser is developed by Team Celeste and is open source.
 
 ## License
 
-License information will be added as the project develops.
+Maple Browser is licensed under the Apache License 2.0.
