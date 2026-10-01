@@ -28,15 +28,7 @@ jobs:
       - name: Build unsigned iOS app
         run: |
           set -e
-          xcodebuild \
-            -project iOS/MapleBrowser.xcodeproj \
-            -scheme MapleBrowser \
-            -sdk iphoneos \
-            -configuration Release \
-            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            build
+          xcodebuild             -project iOS/MapleBrowser.xcodeproj             -scheme MapleBrowser             -sdk iphoneos             -configuration Release             IPHONEOS_DEPLOYMENT_TARGET=13.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
 
       - name: Package IPA
         run: |
@@ -64,7 +56,7 @@ jobs:
           lipo -info "$EXEC"
 
           cd artifacts
-          /usr/bin/zip -r -X MapleBrowser-iOS.ipa Payload
+          /usr/bin/ditto -c -k --norsrc Payload MapleBrowser-iOS.ipa
           cd ..
 
           test -s artifacts/MapleBrowser-iOS.ipa
