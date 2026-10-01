@@ -576,11 +576,9 @@ private final class DownloadsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "download", for: indexPath)
         let item = items[indexPath.row]
-        var config = cell.defaultContentConfiguration()
-        config.text = item.name
+        cell.textLabel?.text = item.name
         let percent = Int(item.progress * 100)
-        config.secondaryText = item.status == "Downloading" ? "Downloading · \(percent)%" : item.status
-        cell.contentConfiguration = config
+        cell.detailTextLabel?.text = item.status == "Downloading" ? "Downloading · \(percent)%" : item.status
         cell.accessoryType = item.status == "Completed" ? .checkmark : .disclosureIndicator
         return cell
     }
