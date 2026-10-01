@@ -21,6 +21,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
+        overrideUserInterfaceStyle = .unspecified
         loadData()
         buildUI()
         addTab(privateMode: false, url: nil)
@@ -137,19 +138,31 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         return """
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
         <style>
-        *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#f5f5f7}
-        body{display:flex;align-items:center;justify-content:center;overflow:hidden;background:#101820}
-        .bg{position:absolute;inset:0;background:linear-gradient(160deg,#101820 0%,#19333a 55%,#3a2924 100%)}
-        .stripe{position:absolute;inset:auto -15% -22% -15%;height:45%;background:#223f46;transform:rotate(-7deg);opacity:.55}
-        .leaf{position:absolute;font-size:190px;opacity:.055;bottom:-55px;right:-30px;transform:rotate(-18deg)}
-        .card{position:relative;text-align:center;width:88%;max-width:520px}
-        .mark{font-size:48px;margin-bottom:8px}.title{font-size:32px;font-weight:700;letter-spacing:-1px}.sub{color:#aeb8bc;font-size:15px;margin:7px 0 28px}
-        form{background:#f2f2f2;border:1px solid #d0d0d0;border-radius:13px;padding:4px;display:flex;box-shadow:0 4px 16px rgba(0,0,0,.25)}
-        input{flex:1;background:transparent;border:0;outline:0;color:#161616;font-size:17px;padding:11px 13px}input::placeholder{color:#777}
-        button{border:0;background:#1677d2;color:white;border-radius:9px;padding:0 16px;font-size:16px;font-weight:600}
-        </style></head><body><div class="bg"></div><div class="stripe"></div><div class="leaf">🍁</div>
-        <main class="card"><div class="mark">🍁</div><div class="title">Maple Browser</div><div class="sub">Simple browsing, nothing in the way.</div>
-        <form><input name="q" autocomplete="off" placeholder="Search or enter a website"><button>Search</button></form></main>
+        *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+        :root{color-scheme:light dark}
+        body{display:flex;align-items:flex-end;justify-content:center;overflow:hidden;background:#f7f7f8;color:#111}
+        .waves{position:absolute;inset:0;overflow:hidden}
+        .wave{position:absolute;left:-15%;width:130%;height:38%;border-radius:50% 50% 0 0/28% 28% 0 0;transform:rotate(-4deg)}
+        .wave.one{bottom:24%;background:#ff7139}
+        .wave.two{bottom:12%;background:#ff4b2f}
+        .wave.three{bottom:1%;background:#a8e63d}
+        .wave.four{bottom:-11%;background:#00a8ff}
+        .wave.five{bottom:-23%;background:#7b3ff2}
+        .search{position:relative;width:min(88%,560px);margin:0 0 34px}
+        form{display:flex;background:rgba(255,255,255,.92);border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.14)}
+        input{width:100%;background:transparent;border:0;outline:0;color:#111;font-size:17px;padding:14px 20px}
+        input::placeholder{color:#777}
+        @media (prefers-color-scheme:dark){
+          body{background:#111214;color:#f5f5f7}
+          form{background:rgba(36,37,41,.96);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+          input{color:#f5f5f7}input::placeholder{color:#a5a5aa}
+        }
+        </style></head><body>
+        <div class="waves" aria-hidden="true">
+          <div class="wave one"></div><div class="wave two"></div><div class="wave three"></div>
+          <div class="wave four"></div><div class="wave five"></div>
+        </div>
+        <main class="search"><form><input name="q" autocomplete="off" autofocus placeholder="Search or enter a website"></form></main>
         <script>document.querySelector('form').onsubmit=function(e){e.preventDefault();window.webkit.messageHandlers.mapleSearch.postMessage(this.q.value)}</script>
         </body></html>
         """
@@ -225,26 +238,32 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     @objc private func newTab() { addTab(privateMode: false, url: nil) }
 
     @objc private func showTabs() {
-        let controller = MapleTabsViewController(
-            tabs: tabs,
-            activeIndex: activeIndex,
-            onSelect: { [weak self] index in
-                self?.dismiss(animated: true) {
-                    self?.switchTab(index)
+        let sourceFrame = webView.convert(webView.bounds, to: view.window)
+        webView.takeSnapshot(with: WKSnapshotConfiguration()) { [weak self] snapshot, _ in
+            guard let self else { return }
+            let controller = MapleTabsViewController(
+                tabs: self.tabs,
+                activeIndex: self.activeIndex,
+                sourceSnapshot: snapshot,
+                sourceFrame: sourceFrame,
+                onSelect: { [weak self] index in
+                    self?.dismiss(animated: true) {
+                        self?.switchTab(index)
+                    }
+                },
+                onNewTab: { [weak self] privateMode in
+                    self?.dismiss(animated: true) {
+                        self?.addTab(privateMode: privateMode, url: nil)
+                    }
+                },
+                onClose: { [weak self] tab in
+                    self?.closeTab(tab: tab)
                 }
-            },
-            onNewTab: { [weak self] privateMode in
-                self?.dismiss(animated: true) {
-                    self?.addTab(privateMode: privateMode, url: nil)
-                }
-            },
-            onClose: { [weak self] tab in
-                self?.closeTab(tab: tab)
-            }
-        )
-        controller.modalPresentationStyle = .custom
-        controller.transitioningDelegate = controller
-        present(controller, animated: true)
+            )
+            controller.modalPresentationStyle = .custom
+            controller.transitioningDelegate = controller
+            self.present(controller, animated: true)
+        }
     }
 
     private func switchTab(_ index: Int) {
@@ -362,9 +381,11 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 }
 
 
-private final class MapleTabsViewController: UIViewController, UIViewControllerTransitioningDelegate, UIViewControllerAnimatedTransitioning {
+private final class MapleTabsViewController: UIViewController, UIViewControllerTransitioningDelegate, UIViewControllerAnimatedTransitioning, UIScrollViewDelegate {
     private let tabs: [WKWebView]
     private var activeIndex: Int
+    private let sourceSnapshot: UIImage?
+    private let sourceFrame: CGRect
     private let onSelect: (Int) -> Void
     private let onNewTab: (Bool) -> Void
     private let onClose: (WKWebView) -> Void
@@ -373,15 +394,16 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
     private let stack = UIStackView()
     private var cardViews: [UIView] = []
     private var previewViews: [UIImageView] = []
-    private var hasPlayedOpenAnimation = false
     private var isPresentingTransition = true
 
-    init(tabs: [WKWebView], activeIndex: Int,
+    init(tabs: [WKWebView], activeIndex: Int, sourceSnapshot: UIImage?, sourceFrame: CGRect,
          onSelect: @escaping (Int) -> Void,
          onNewTab: @escaping (Bool) -> Void,
          onClose: @escaping (WKWebView) -> Void) {
         self.tabs = tabs
         self.activeIndex = activeIndex
+        self.sourceSnapshot = sourceSnapshot
+        self.sourceFrame = sourceFrame
         self.onSelect = onSelect
         self.onNewTab = onNewTab
         self.onClose = onClose
@@ -404,13 +426,10 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         return self
     }
 
-    func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
-        0.46
-    }
+    func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval { 0.52 }
 
     func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
         let container = transitionContext.containerView
-        let duration = transitionDuration(using: transitionContext)
 
         if isPresentingTransition {
             guard let toView = transitionContext.view(forKey: .to) else {
@@ -420,44 +439,45 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
             container.addSubview(toView)
             toView.frame = transitionContext.finalFrame(for: transitionContext.viewController(forKey: .to)!)
-            toView.alpha = 1
-
-            // Start the entire switcher as the active website-sized surface.
-            // The card itself is then animated down into its real app-switcher size.
             toView.layoutIfNeeded()
+            updateCardDepth()
 
             let activeCard = cardViews.indices.contains(activeIndex) ? cardViews[activeIndex] : nil
             let activePreview = previewViews.indices.contains(activeIndex) ? previewViews[activeIndex] : nil
 
-            let finalCardTransform = activeCard?.transform ?? .identity
-            let finalPreviewTransform = activePreview?.transform ?? .identity
+            if let snapshot = sourceSnapshot, let activePreview {
+                let overlay = UIImageView(image: snapshot)
+                overlay.contentMode = .scaleAspectFit
+                overlay.clipsToBounds = true
+                overlay.backgroundColor = .systemBackground
+                overlay.frame = sourceFrame
+                container.addSubview(overlay)
 
-            activeCard?.transform = CGAffineTransform(scaleX: 1.32, y: 1.32)
-            activeCard?.alpha = 0
-            activePreview?.transform = CGAffineTransform(scaleX: 1.06, y: 1.06)
+                activePreview.alpha = 0
+                let previewBounds = activePreview.convert(activePreview.bounds, to: container)
+                let targetRect = aspectFitRect(imageSize: snapshot.size, in: previewBounds)
 
-            // Keep the surrounding UI quiet while the webpage shrinks into its card.
-            for (index, card) in cardViews.enumerated() where index != activeIndex {
-                card.alpha = 0
-                card.transform = CGAffineTransform(scaleX: 0.94, y: 0.94)
-            }
-
-            let timing = UISpringTimingParameters(dampingRatio: 0.88, initialVelocity: CGVector(dx: 0, dy: 0))
-            let animator = UIViewPropertyAnimator(duration: duration, timingParameters: timing)
-            animator.addAnimations {
-                activeCard?.transform = finalCardTransform
-                activeCard?.alpha = 1
-                activePreview?.transform = finalPreviewTransform
-
-                for (index, card) in self.cardViews.enumerated() where index != self.activeIndex {
-                    card.alpha = 0.72
-                    card.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
+                let animator = UIViewPropertyAnimator(
+                    duration: transitionDuration(using: transitionContext),
+                    timingParameters: UISpringTimingParameters(
+                        dampingRatio: 0.9,
+                        initialVelocity: CGVector(dx: 0, dy: 0.15)
+                    )
+                )
+                animator.addAnimations {
+                    overlay.frame = targetRect
+                    overlay.layer.cornerRadius = 18
+                    activePreview.alpha = 1
                 }
+                animator.addCompletion { _ in
+                    overlay.removeFromSuperview()
+                    self.refreshSnapshots()
+                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
+                }
+                animator.startAnimation()
+            } else {
+                transitionContext.completeTransition(true)
             }
-            animator.addCompletion { _ in
-                transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
-            }
-            animator.startAnimation()
         } else {
             guard let fromView = transitionContext.view(forKey: .from) else {
                 transitionContext.completeTransition(false)
@@ -465,11 +485,12 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             }
 
             let animator = UIViewPropertyAnimator(
-                duration: duration,
-                dampingRatio: 0.92
-            ) {
+                duration: transitionDuration(using: transitionContext),
+                timingParameters: UISpringTimingParameters(dampingRatio: 0.92)
+            )
+            animator.addAnimations {
                 fromView.alpha = 0
-                fromView.transform = CGAffineTransform(scaleX: 0.94, y: 0.94)
+                fromView.transform = CGAffineTransform(scaleX: 0.96, y: 0.96)
             }
             animator.addCompletion { _ in
                 fromView.transform = .identity
@@ -477,6 +498,13 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             }
             animator.startAnimation()
         }
+    }
+
+    private func aspectFitRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0, bounds.width > 0, bounds.height > 0 else { return bounds }
+        let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)
+        let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        return CGRect(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2, width: size.width, height: size.height)
     }
 
     override func viewDidLoad() {
@@ -513,13 +541,14 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         scrollView.alwaysBounceHorizontal = true
         scrollView.decelerationRate = .fast
         scrollView.clipsToBounds = false
+        scrollView.delegate = self
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(stack)
         view.addSubview(scrollView)
 
         stack.axis = .horizontal
         stack.alignment = .center
-        stack.spacing = -150
+        stack.spacing = -155
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let newButton = UIButton(type: .system)
@@ -570,16 +599,9 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             addCard(for: index)
         }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.scrollToActive(animated: false)
-            self?.refreshSnapshots()
-        }
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        guard !hasPlayedOpenAnimation else { return }
-        hasPlayedOpenAnimation = true
+        view.layoutIfNeeded()
+        scrollToActive(animated: false)
+        updateCardDepth()
     }
 
     private func addCard(for index: Int) {
@@ -604,13 +626,13 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         card.addSubview(preview)
 
         let overlay = UIView()
-        overlay.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.94)
+        overlay.backgroundColor = .systemBackground
         overlay.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(overlay)
 
         let label = UILabel()
         let title = tabs[index].title?.isEmpty == false ? tabs[index].title! : "New Tab"
-        label.text = privateTabTitle(for: index) + title
+        label.text = title
         label.font = .systemFont(ofSize: 15, weight: .semibold)
         label.textColor = .label
         label.numberOfLines = 1
@@ -656,21 +678,16 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             close.heightAnchor.constraint(equalToConstant: 32)
         ])
 
-        card.transform = index == activeIndex ? .identity : CGAffineTransform(scaleX: 0.92, y: 0.92)
-        card.alpha = index == activeIndex ? 1 : 0.72
-        // Avoid layer rasterization during scroll/transform animations; it can make
-        // overlapping cards visibly snap between cached and uncached surfaces.
+        card.transform = .identity
+        card.alpha = 1
         card.layer.shouldRasterize = false
     }
-
-    private func privateTabTitle(for index: Int) -> String { "" }
 
     private func refreshSnapshots() {
         for index in tabs.indices {
             guard index < previewViews.count else { continue }
             let webView = tabs[index]
             let imageView = previewViews[index]
-
             let configuration = WKSnapshotConfiguration()
             configuration.afterScreenUpdates = false
 
@@ -683,11 +700,38 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         }
     }
 
+    private func updateCardDepth() {
+        guard !cardViews.isEmpty else { return }
+        let centerX = scrollView.bounds.midX
+
+        for card in cardViews {
+            let rect = card.convert(card.bounds, to: scrollView)
+            let distance = abs(rect.midX - centerX) / max(card.bounds.width, 1)
+            let scale = max(0.70, 1.0 - min(distance, 3.0) * 0.09)
+            card.transform = CGAffineTransform(scaleX: scale, y: scale)
+            card.alpha = 1
+            card.layer.zPosition = Float(1000 - distance * 100)
+        }
+
+        if let topCard = cardViews.min(by: {
+            abs($0.convert($0.bounds, to: self.scrollView).midX - centerX) <
+            abs($1.convert($1.bounds, to: self.scrollView).midX - centerX)
+        }) {
+            topCard.layer.zPosition = 2000
+        }
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        updateCardDepth()
+    }
+
     private func scrollToActive(animated: Bool) {
         guard activeIndex < cardViews.count else { return }
         let card = cardViews[activeIndex]
         let rect = card.convert(card.bounds, to: scrollView)
-        let targetX = max(0, rect.midX - scrollView.bounds.width / 2)
+        let targetX = max(-scrollView.adjustedContentInset.left,
+                          min(rect.midX - scrollView.bounds.width / 2,
+                              scrollView.contentSize.width - scrollView.bounds.width))
         scrollView.setContentOffset(CGPoint(x: targetX, y: 0), animated: animated)
     }
 
@@ -702,9 +746,8 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         let card = cardViews[index]
         let tab = tabs[index]
 
-        let animator = UIViewPropertyAnimator(duration: 0.42, dampingRatio: 0.86) {
-            card.transform = CGAffineTransform(scaleX: 0.86, y: 0.86)
-                .translatedBy(x: 0, y: 18)
+        let animator = UIViewPropertyAnimator(duration: 0.38, dampingRatio: 0.9) {
+            card.transform = CGAffineTransform(scaleX: 0.78, y: 0.78).translatedBy(x: 0, y: 18)
             card.alpha = 0
         }
         animator.addCompletion { [weak self, weak card] _ in
