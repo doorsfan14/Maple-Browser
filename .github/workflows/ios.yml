@@ -37,9 +37,8 @@ jobs:
           APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -path "*/Build/Products/Release-iphoneos/Maple Browser.app" -print -quit)"
           test -n "$APP_PATH"
           cp -R "$APP_PATH" artifacts/Payload/
-          cd artifacts
-          test -f "Payload/Maple Browser.app/MapleBrowser"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "Payload/Maple Browser.app/Info.plist" | grep -qx "MapleBrowser"
+          test -f "artifacts/Payload/Maple Browser.app/MapleBrowser"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "artifacts/Payload/Maple Browser.app/Info.plist" | grep -qx "MapleBrowser"
           cd artifacts
           /usr/bin/zip -qry MapleBrowser-iOS.ipa Payload
           cd ..
