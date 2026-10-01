@@ -295,8 +295,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     private func showActionPanel(title: String, actions: [(String, () -> Void)]) {
         let panel = ActionPanelViewController(title: title, actions: actions)
         panel.modalPresentationStyle = .pageSheet
-        if let sheet = panel.sheetPresentationController {
-            if #available(iOS 15.0, *) {
+        if #available(iOS 15.0, *) {
+            if let sheet = panel.sheetPresentationController {
                 sheet.detents = [.medium, .large]
                 sheet.prefersGrabberVisible = true
             }
@@ -310,6 +310,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 private final class ActionPanelViewController: UIViewController {
     private let panelTitle: String
     private let actions: [(String, () -> Void)]
+    private var actionHandlers: [() -> Void] = []
 
     init(title: String, actions: [(String, () -> Void)]) {
         self.panelTitle = title
@@ -318,6 +319,17 @@ private final class ActionPanelViewController: UIViewController {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    @objc private func handleActionButton(_ sender: UIButton) {
+        guard let value = sender.accessibilityValue,
+              let index = actions.firstIndex(where: { $0.0 == value }),
+              actionHandlers.indices.contains(index) else { return }
+        dismiss(animated: true, completion: actionHandlers[index])
+    }
+
+    @objc private func cancelPanel() {
+        dismiss(animated: true)
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -341,9 +353,10 @@ private final class ActionPanelViewController: UIViewController {
             button.contentHorizontalAlignment = .left
             button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 14, bottom: 0, right: 14)
             button.heightAnchor.constraint(equalToConstant: 48).isActive = true
-            button.addAction(UIAction { [weak self] _ in
-                self?.dismiss(animated: true, completion: action)
-            }, for: .touchUpInside)
+            button.addTarget(self, action: #selector(handleActionButton(_:)), for: .touchUpInside)
+            button.accessibilityIdentifier = "maple-action"
+            button.accessibilityValue = text
+            actionHandlers.append(action)
             stack.addArrangedSubview(button)
         }
 
@@ -353,7 +366,7 @@ private final class ActionPanelViewController: UIViewController {
         cancel.backgroundColor = .secondarySystemBackground
         cancel.layer.cornerRadius = 10
         cancel.heightAnchor.constraint(equalToConstant: 48).isActive = true
-        cancel.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) }, for: .touchUpInside)
+        cancel.addTarget(self, action: #selector(cancelPanel), for: .touchUpInside)
 
         let root = UIStackView(arrangedSubviews: [title, stack, cancel])
         root.axis = .vertical
