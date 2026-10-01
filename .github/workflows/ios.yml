@@ -28,26 +28,20 @@ jobs:
       - name: Build unsigned iOS app
         run: |
           set -e
-          xcodebuild \
-            -project iOS/MapleBrowser.xcodeproj \
-            -scheme MapleBrowser \
-            -sdk iphoneos \
-            -configuration Release \
-            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            build
+          xcodebuild             -project iOS/MapleBrowser.xcodeproj             -scheme MapleBrowser             -sdk iphoneos             -configuration Release             IPHONEOS_DEPLOYMENT_TARGET=13.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
 
-      - name: Package build
+      - name: Package IPA
         run: |
           set -e
-          mkdir -p artifacts
+          mkdir -p artifacts/Payload
           APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -path "*/Build/Products/Release-iphoneos/Maple Browser.app" -print -quit)"
           test -n "$APP_PATH"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" artifacts/MapleBrowser-iOS13-unsigned.zip
+          cp -R "$APP_PATH" artifacts/Payload/
+          cd artifacts
+          ditto -c -k --sequesterRsrc --keepParent Payload MapleBrowser-iOS.ipa
 
       - name: Upload iOS build
         uses: actions/upload-artifact@v4
         with:
-          name: MapleBrowser-iOS13-unsigned
-          path: artifacts/MapleBrowser-iOS13-unsigned.zip
+          name: MapleBrowser-iOS
+          path: artifacts/MapleBrowser-iOS.ipa
