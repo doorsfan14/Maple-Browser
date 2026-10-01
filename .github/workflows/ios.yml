@@ -22,6 +22,6 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec iOS/project.yml --project iOS/MapleBrowser.xcodeproj
 
-      - name: Build iOS 12-compatible app
+      - name: Build iOS 13-compatible app
         run: |
-          xcodebuild             -project iOS/MapleBrowser.xcodeproj             -scheme MapleBrowser             -sdk iphoneos             -configuration Release             IPHONEOS_DEPLOYMENT_TARGET=12.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
+          xcodebuild             -project iOS/MapleBrowser.xcodeproj             -scheme MapleBrowser             -sdk iphoneos             -configuration Release             IPHONEOS_DEPLOYMENT_TARGET=13.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
