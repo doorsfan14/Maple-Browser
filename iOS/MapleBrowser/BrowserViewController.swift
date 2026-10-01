@@ -75,7 +75,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
     }
 
     private func addTab(privateMode: Bool, url: URL?) {
-        let config = WKWebViewConfiguration()
+        let config = WKWebViewConfiguration()\n        let contentController = WKUserContentController()\n        contentController.add(self, name: "mapleSearch")\n        config.userContentController = contentController
         config.allowsInlineMediaPlayback = true
         if privateMode { config.websiteDataStore = .nonPersistent() }
 
