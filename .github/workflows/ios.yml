@@ -22,12 +22,20 @@ jobs:
       - name: Generate Xcode project
         run: |
           rm -rf iOS/MapleBrowser.xcodeproj
-          xcodegen generate --spec iOS/project.yml --project iOS/MapleBrowser.xcodeproj
+          xcodegen generate --spec iOS/project.yml --project iOS/MapleBrowser
 
       - name: Build unsigned iOS app
         run: |
           set -e
-          xcodebuild             -project iOS/MapleBrowser.xcodeproj             -scheme MapleBrowser             -sdk iphoneos             -configuration Release             IPHONEOS_DEPLOYMENT_TARGET=13.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
+          xcodebuild \
+            -project iOS/MapleBrowser.xcodeproj \
+            -scheme MapleBrowser \
+            -sdk iphoneos \
+            -configuration Release \
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
 
       - name: Package build
         run: |
