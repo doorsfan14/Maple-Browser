@@ -13,8 +13,20 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+      - name: Select Xcode 16.4 (iOS 18 SDK)
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          echo "=== Xcode ==="
+          xcodebuild -version
+          echo "=== iPhoneOS SDK ==="
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iPhoneOS SDK: $SDK_VERSION"
+          SDK_MAJOR="${SDK_VERSION%%.*}"
+          if [ "$SDK_MAJOR" -ge 26 ]; then
+            echo "ERROR: Refusing to build Maple Browser with an iOS 26+ SDK."
+            exit 1
+          fi
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -28,6 +40,9 @@ jobs:
       - name: Build unsigned iOS app
         run: |
           set -euo pipefail
+          echo "Building with:"
+          xcodebuild -version
+          echo "SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
           xcodebuild \
             -project iOS/MapleBrowser.xcodeproj \
             -scheme MapleBrowser \
