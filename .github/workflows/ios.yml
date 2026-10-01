@@ -20,7 +20,9 @@ jobs:
         run: brew install xcodegen
 
       - name: Generate Xcode project
-        run: xcodegen generate --spec iOS/project.yml --project iOS/MapleBrowser.xcodeproj
+        run: |
+          rm -rf iOS/MapleBrowser.xcodeproj
+          xcodegen generate --spec iOS/project.yml --project iOS/MapleBrowser.xcodeproj
 
       - name: Build unsigned iOS app
         run: |
