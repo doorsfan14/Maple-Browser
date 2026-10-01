@@ -38,7 +38,12 @@ jobs:
           test -n "$APP_PATH"
           cp -R "$APP_PATH" artifacts/Payload/
           cd artifacts
-          ditto -c -k --sequesterRsrc --keepParent Payload MapleBrowser-iOS.ipa
+          test -f "Payload/Maple Browser.app/MapleBrowser"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "Payload/Maple Browser.app/Info.plist" | grep -qx "MapleBrowser"
+          cd artifacts
+          /usr/bin/zip -qry MapleBrowser-iOS.ipa Payload
+          cd ..
+          unzip -l artifacts/MapleBrowser-iOS.ipa | grep -q "Payload/Maple Browser.app/MapleBrowser"
 
       - name: Upload iOS build
         uses: actions/upload-artifact@v4
