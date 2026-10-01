@@ -1,6 +1,6 @@
 import UIKit
 import WebKit
-import MapleCore
+import Foundation
 
 final class BrowserViewController: UIViewController, WKNavigationDelegate, UISearchBarDelegate {
     private let webView: WKWebView
@@ -55,30 +55,80 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
         view.addSubview(contentView)
         contentView.addSubview(webView)
 
-        if #available(iOS 11.0, *) {
-            NSLayoutConstraint.activate([
-                top.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-                top.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-                top.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
-                contentView.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 4),
-                contentView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-                contentView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-                webView.topAnchor.constraint(equalTo: contentView.topAnchor),
-                webView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-                webView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-                webView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
-            ])
+        NSLayoutConstraint.activate([
+            top.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            top.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            top.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            contentView.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 4),
+            contentView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            contentView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            webView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            webView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            webView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        ])
+
+        loadHome()
+        updateButtons()
+
+        if !UserDefaults.standard.bool(forKey: "maple.didShowCelesteAccountPrompt") {
+            UserDefaults.standard.set(true, forKey: "maple.didShowCelesteAccountPrompt")
+            DispatchQueue.main.async { [weak self] in
+                self?.showCelesteAccountPrompt()
+            }
+        }
+    }
+
+    private func loadHome() {
+        if let url = URL(string: "https://www.google.com") {
+            webView.load(URLRequest(url: url))
+        }
+    }
+
+    private func destination(for input: String) -> URL? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let url = URL(string: trimmed), url.scheme != nil {
+            return url
         }
 
-        if let home = MapleURL.destination(for: "https://www.google.com") {
-            webView.load(URLRequest(url: home))
+        if trimmed.contains(".") && !trimmed.contains(" ") {
+            return URL(string: "https://" + trimmed)
         }
-        updateButtons()
+
+        let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
+        return URL(string: "https://www.google.com/search?q=" + encoded)
+    }
+
+    private func showCelesteAccountPrompt() {
+        let alert = UIAlertController(
+            title: "Wanna connect your Celeste Account?",
+            message: nil,
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Yes", style: .default) { [weak self] _ in
+            self?.showLocalDataMessage()
+        })
+        alert.addAction(UIAlertAction(title: "No", style: .cancel))
+
+        present(alert, animated: true)
+    }
+
+    private func showLocalDataMessage() {
+        let alert = UIAlertController(
+            title: "Just kidding, dude.",
+            message: "No need to connect accounts if you're gonna use this rarely lol, plus it's better if your data stays local rather than your save data (eg: browser history) stays on a server, enjoy the browser!",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Enjoy Maple", style: .default))
+        present(alert, animated: true)
     }
 
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        guard let url = MapleURL.destination(for: searchBar.text ?? "") else { return }
+        guard let url = destination(for: searchBar.text ?? "") else { return }
         searchBar.resignFirstResponder()
         webView.load(URLRequest(url: url))
     }
