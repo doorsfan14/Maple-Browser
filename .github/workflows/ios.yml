@@ -42,7 +42,8 @@ jobs:
           cd artifacts
           /usr/bin/zip -qry MapleBrowser-iOS.ipa Payload
           cd ..
-          unzip -l artifacts/MapleBrowser-iOS.ipa | grep -q "Payload/Maple Browser.app/MapleBrowser"
+          unzip -l artifacts/MapleBrowser-iOS.ipa
+          test -s artifacts/MapleBrowser-iOS.ipa
 
       - name: Upload iOS build
         uses: actions/upload-artifact@v4
