@@ -238,8 +238,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
                     self?.addTab(privateMode: privateMode, url: nil)
                 }
             },
-            onClose: { [weak self] index in
-                self?.closeTab(at: index)
+            onClose: { [weak self] tab in
+                self?.closeTab(tab: tab)
             }
         )
         controller.modalPresentationStyle = .fullScreen
@@ -271,6 +271,11 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             activeIndex = min(activeIndex, tabs.count - 1)
         }
         showActiveWebView()
+    }
+
+    private func closeTab(tab: WKWebView) {
+        guard let index = tabs.firstIndex(where: { $0 === tab }) else { return }
+        closeTab(at: index)
     }
 
     @objc private func showMenu() {
@@ -361,7 +366,7 @@ private final class MapleTabsViewController: UIViewController {
     private var activeIndex: Int
     private let onSelect: (Int) -> Void
     private let onNewTab: (Bool) -> Void
-    private let onClose: (Int) -> Void
+    private let onClose: (WKWebView) -> Void
     private let scrollView = UIScrollView()
     private let stack = UIStackView()
     private var cardViews: [UIView] = []
@@ -369,7 +374,7 @@ private final class MapleTabsViewController: UIViewController {
     init(tabs: [WKWebView], activeIndex: Int,
          onSelect: @escaping (Int) -> Void,
          onNewTab: @escaping (Bool) -> Void,
-         onClose: @escaping (Int) -> Void) {
+         onClose: @escaping (WKWebView) -> Void) {
         self.tabs = tabs
         self.activeIndex = activeIndex
         self.onSelect = onSelect
@@ -550,9 +555,7 @@ private final class MapleTabsViewController: UIViewController {
     }
 
     private func privateTabTitle(for index: Int) -> String {
-        return tabs[index].configuration.websiteDataStore == WKWebsiteDataStore.nonPersistent()
-            ? "Private · "
-            : ""
+        return ""
     }
 
     private func scrollToActive(animated: Bool) {
@@ -572,6 +575,7 @@ private final class MapleTabsViewController: UIViewController {
         let index = sender.tag
         guard index < cardViews.count else { return }
         let card = cardViews[index]
+        let tab = tabs[index]
 
         // Each close animation gets its own UIViewPropertyAnimator.
         // A second close can therefore run concurrently instead of cancelling the first.
@@ -582,7 +586,7 @@ private final class MapleTabsViewController: UIViewController {
         }
         animator.addCompletion { [weak self, weak card] _ in
             card?.removeFromSuperview()
-            self?.onClose(index)
+            self?.onClose(tab)
         }
         animator.startAnimation()
     }
