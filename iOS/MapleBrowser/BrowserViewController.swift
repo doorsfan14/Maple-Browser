@@ -2,10 +2,11 @@ import UIKit
 import WebKit
 import Foundation
 
-final class BrowserViewController: UIViewController, WKNavigationDelegate, UISearchBarDelegate, WKUIDelegate, WKScriptMessageHandler {
-    private let addressBar = UISearchBar()
+final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+    private let addressBar = UITextField()
     private let content = UIView()
     private let bottomBar = UIStackView()
+    private let chromeBar = UIView()
     private var tabs: [WKWebView] = []
     private var privateTabs: [Bool] = []
     private var activeIndex = 0
@@ -25,33 +26,41 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
 
     private func buildUI() {
         addressBar.placeholder = "Search or enter website"
-        addressBar.delegate = self
         addressBar.autocapitalizationType = .none
         addressBar.autocorrectionType = .no
         addressBar.returnKeyType = .go
-        addressBar.searchBarStyle = .minimal
-        addressBar.backgroundImage = UIImage()
-        addressBar.layer.cornerRadius = 12
-        addressBar.clipsToBounds = true
+        addressBar.borderStyle = .roundedRect
+        addressBar.backgroundColor = .secondarySystemBackground
+        addressBar.textColor = .label
+        addressBar.tintColor = .systemBlue
+        addressBar.clearButtonMode = .whileEditing
+        addressBar.addTarget(self, action: #selector(addressSubmitted), for: .editingDidEndOnExit)
 
-        let top = UIStackView(arrangedSubviews: [addressBar])
+        let top = UIStackView(arrangedSubviews: [addressBar])        let top = UIStackView(arrangedSubviews: [addressBar])
         top.translatesAutoresizingMaskIntoConstraints = false
 
         bottomBar.axis = .horizontal
         bottomBar.alignment = .center
         bottomBar.distribution = .equalSpacing
         bottomBar.translatesAutoresizingMaskIntoConstraints = false
-        [toolbarButton("‹", #selector(goBack)), toolbarButton("›", #selector(goForward)),
-         toolbarButton("＋", #selector(newTab)), toolbarButton("▢", #selector(showTabs)),
-         toolbarButton("☰", #selector(showMenu))].forEach { bottomBar.addArrangedSubview($0) }
+        [toolbarButton("chevron.left", #selector(goBack)), toolbarButton("chevron.right", #selector(goForward)),
+         toolbarButton("plus", #selector(newTab)), toolbarButton("square.on.square", #selector(showTabs)),
+         toolbarButton("ellipsis", #selector(showMenu))].forEach { bottomBar.addArrangedSubview($0) }
 
         content.translatesAutoresizingMaskIntoConstraints = false
+        chromeBar.backgroundColor = .systemBackground
+        chromeBar.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(chromeBar)
         view.addSubview(top)
         view.addSubview(content)
         view.addSubview(bottomBar)
 
         NSLayoutConstraint.activate([
-            top.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
+            chromeBar.topAnchor.constraint(equalTo: view.topAnchor),
+            chromeBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            chromeBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            chromeBar.bottomAnchor.constraint(equalTo: top.bottomAnchor, constant: 8),
+            top.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             top.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             top.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             top.heightAnchor.constraint(equalToConstant: 44),
@@ -62,14 +71,18 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
             bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 22),
             bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -22),
             bottomBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -5),
-            bottomBar.heightAnchor.constraint(equalToConstant: 48)
+            bottomBar.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
 
-    private func toolbarButton(_ title: String, _ action: Selector) -> UIButton {
+    private func toolbarButton(_ symbol: String, _ action: Selector) -> UIButton {
         let b = UIButton(type: .system)
-        b.setTitle(title, for: .normal)
-        b.titleLabel?.font = .systemFont(ofSize: 22, weight: .medium)
+        b.setImage(UIImage(systemName: symbol), for: .normal)
+        b.tintColor = .label
+        b.backgroundColor = .secondarySystemBackground
+        b.layer.cornerRadius = 9
+        b.widthAnchor.constraint(equalToConstant: 40).isActive = true
+        b.heightAnchor.constraint(equalToConstant: 36).isActive = true
         b.addTarget(self, action: action, for: .touchUpInside)
         return b
     }
@@ -123,18 +136,19 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
         return """
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
         <style>
-        *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:white}
-        body{display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(145deg,#0b1728 0%,#163b45 48%,#6b3f2b 100%)}
-        .glow{position:absolute;width:420px;height:420px;border-radius:50%;background:rgba(255,196,111,.13);filter:blur(50px);top:-130px;right:-100px}
-        .leaf{position:absolute;font-size:180px;opacity:.07;transform:rotate(-18deg);bottom:-45px;left:-25px}
-        .card{position:relative;text-align:center;width:88%;max-width:560px}
-        .mark{font-size:58px;margin-bottom:4px}.title{font-size:38px;font-weight:700;letter-spacing:-1.5px}.sub{opacity:.68;font-size:15px;margin:8px 0 26px}
-        form{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(20px);border-radius:18px;padding:6px;display:flex}
-        input{flex:1;background:transparent;border:0;outline:0;color:white;font-size:17px;padding:12px 14px}input::placeholder{color:rgba(255,255,255,.65)}
-        button{border:0;border-radius:13px;padding:0 17px;font-size:17px;font-weight:600}
-        </style></head><body><div class="glow"></div><div class="leaf">🍁</div>
-        <main class="card"><div class="mark">🍁</div><div class="title">Maple Browser</div><div class="sub">A simple, fast place to browse.</div>
-        <form><input name="q" autocomplete="off" placeholder="Search or enter a website"></form></main>
+        *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:#f5f5f7}
+        body{display:flex;align-items:center;justify-content:center;overflow:hidden;background:#101820}
+        .bg{position:absolute;inset:0;background:linear-gradient(160deg,#101820 0%,#19333a 55%,#3a2924 100%)}
+        .stripe{position:absolute;inset:auto -15% -22% -15%;height:45%;background:#223f46;transform:rotate(-7deg);opacity:.55}
+        .leaf{position:absolute;font-size:190px;opacity:.055;bottom:-55px;right:-30px;transform:rotate(-18deg)}
+        .card{position:relative;text-align:center;width:88%;max-width:520px}
+        .mark{font-size:48px;margin-bottom:8px}.title{font-size:32px;font-weight:700;letter-spacing:-1px}.sub{color:#aeb8bc;font-size:15px;margin:7px 0 28px}
+        form{background:#f2f2f2;border:1px solid #d0d0d0;border-radius:13px;padding:4px;display:flex;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+        input{flex:1;background:transparent;border:0;outline:0;color:#161616;font-size:17px;padding:11px 13px}input::placeholder{color:#777}
+        button{border:0;background:#1677d2;color:white;border-radius:9px;padding:0 16px;font-size:16px;font-weight:600}
+        </style></head><body><div class="bg"></div><div class="stripe"></div><div class="leaf">🍁</div>
+        <main class="card"><div class="mark">🍁</div><div class="title">Maple Browser</div><div class="sub">Simple browsing, nothing in the way.</div>
+        <form><input name="q" autocomplete="off" placeholder="Search or enter a website"><button>Search</button></form></main>
         <script>document.querySelector('form').onsubmit=function(e){e.preventDefault();window.webkit.messageHandlers.mapleSearch.postMessage(this.q.value)}</script>
         </body></html>
         """
@@ -162,8 +176,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
         webView.load(URLRequest(url: url))
     }
 
-    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        navigate(searchBar.text ?? "")
+    @objc private func addressSubmitted() {
+        navigate(addressBar.text ?? "")
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -194,15 +208,14 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
     @objc private func newTab() { addTab(privateMode: false, url: nil) }
 
     @objc private func showTabs() {
-        let alert = UIAlertController(title: "Tabs  ·  \(tabs.count)", message: nil, preferredStyle: .actionSheet)
+        var actions: [(String, () -> Void)] = []
         for i in tabs.indices {
-            alert.addAction(UIAlertAction(title: "\(i + 1)  ·  \(tabs[i].title ?? "New Tab")", style: .default) { [weak self] _ in self?.switchTab(i) })
+            actions.append(("\(i + 1) · \(tabs[i].title ?? "New Tab")", { [weak self] in self?.switchTab(i) }))
         }
-        alert.addAction(UIAlertAction(title: "New Tab", style: .default) { [weak self] _ in self?.addTab(privateMode: false, url: nil) })
-        alert.addAction(UIAlertAction(title: "New Private Tab", style: .default) { [weak self] _ in self?.addTab(privateMode: true, url: nil) })
-        if tabs.count > 1 { alert.addAction(UIAlertAction(title: "Close Current Tab", style: .destructive) { [weak self] _ in self?.closeCurrentTab() }) }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
+        actions.append(("New Tab", { [weak self] in self?.addTab(privateMode: false, url: nil) }))
+        actions.append(("New Private Tab", { [weak self] in self?.addTab(privateMode: true, url: nil) }))
+        if tabs.count > 1 { actions.append(("Close Current Tab", { [weak self] in self?.closeCurrentTab() })) }
+        showActionPanel(title: "Tabs · \(tabs.count)", actions: actions)
     }
 
     private func switchTab(_ index: Int) {
@@ -220,14 +233,13 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
     }
 
     @objc private func showMenu() {
-        let alert = UIAlertController(title: "Maple Browser", message: nil, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Reload", style: .default) { [weak self] _ in self?.reload() })
-        alert.addAction(UIAlertAction(title: "Add Bookmark", style: .default) { [weak self] _ in self?.addBookmark() })
-        alert.addAction(UIAlertAction(title: "Bookmarks", style: .default) { [weak self] _ in self?.showBookmarks() })
-        alert.addAction(UIAlertAction(title: "History", style: .default) { [weak self] _ in self?.showHistory() })
-        alert.addAction(UIAlertAction(title: "Settings", style: .default) { [weak self] _ in self?.showSettings() })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
+        showActionPanel(title: "Maple Browser", actions: [
+            ("Reload", { [weak self] in self?.reload() }),
+            ("Add Bookmark", { [weak self] in self?.addBookmark() }),
+            ("Bookmarks", { [weak self] in self?.showBookmarks() }),
+            ("History", { [weak self] in self?.showHistory() }),
+            ("Settings", { [weak self] in self?.showSettings() })
+        ])
     }
 
     private func loadData() {
@@ -248,36 +260,112 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, UISea
     }
 
     private func showBookmarks() {
-        let alert = UIAlertController(title: "Bookmarks", message: nil, preferredStyle: .actionSheet)
+        var actions: [(String, () -> Void)] = []
         for item in bookmarks {
-            alert.addAction(UIAlertAction(title: item["title"] ?? item["url"] ?? "Bookmark", style: .default) { [weak self] _ in
+            actions.append((item["title"] ?? item["url"] ?? "Bookmark", { [weak self] in
                 if let u = item["url"], let url = URL(string: u) { self?.webView.load(URLRequest(url: url)) }
-            })
+            }))
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
+        showActionPanel(title: "Bookmarks", actions: actions)
     }
 
     private func showHistory() {
-        let alert = UIAlertController(title: "History", message: nil, preferredStyle: .actionSheet)
+        var actions: [(String, () -> Void)] = []
         for item in history.prefix(30) {
-            alert.addAction(UIAlertAction(title: item["title"] ?? item["url"] ?? "Page", style: .default) { [weak self] _ in
+            actions.append((item["title"] ?? item["url"] ?? "Page", { [weak self] in
                 if let u = item["url"], let url = URL(string: u) { self?.webView.load(URLRequest(url: url)) }
-            })
+            }))
         }
-        alert.addAction(UIAlertAction(title: "Clear History", style: .destructive) { [weak self] _ in self?.history.removeAll(); self?.saveData() })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
+        if !history.isEmpty { actions.append(("Clear History", { [weak self] in self?.history.removeAll(); self?.saveData() })) }
+        showActionPanel(title: "History", actions: actions)
     }
 
     private func showSettings() {
-        let alert = UIAlertController(title: "Settings", message: "Maple Browser", preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Clear History", style: .destructive) { [weak self] _ in self?.history.removeAll(); self?.saveData() })
-        alert.addAction(UIAlertAction(title: "Clear Bookmarks", style: .destructive) { [weak self] _ in self?.bookmarks.removeAll(); self?.saveData() })
-        alert.addAction(UIAlertAction(title: "Clear Web Data", style: .destructive) { [weak self] _ in
-            for w in self?.tabs ?? [] { w.configuration.websiteDataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: Date.distantPast) {} }
-        })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        present(alert, animated: true)
+        showActionPanel(title: "Settings", actions: [
+            ("Clear History", { [weak self] in self?.history.removeAll(); self?.saveData() }),
+            ("Clear Bookmarks", { [weak self] in self?.bookmarks.removeAll(); self?.saveData() }),
+            ("Clear Web Data", { [weak self] in
+                for w in self?.tabs ?? [] {
+                    w.configuration.websiteDataStore.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: Date.distantPast) {}
+                }
+            })
+        ])
+    }
+
+    private func showActionPanel(title: String, actions: [(String, () -> Void)]) {
+        let panel = ActionPanelViewController(title: title, actions: actions)
+        panel.modalPresentationStyle = .pageSheet
+        if let sheet = panel.sheetPresentationController {
+            if #available(iOS 15.0, *) {
+                sheet.detents = [.medium, .large]
+                sheet.prefersGrabberVisible = true
+            }
+        }
+        present(panel, animated: true)
+    }
+
+}
+
+
+private final class ActionPanelViewController: UIViewController {
+    private let panelTitle: String
+    private let actions: [(String, () -> Void)]
+
+    init(title: String, actions: [(String, () -> Void)]) {
+        self.panelTitle = title
+        self.actions = actions
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+
+        let title = UILabel()
+        title.text = panelTitle
+        title.font = .systemFont(ofSize: 20, weight: .semibold)
+        title.textColor = .label
+
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.spacing = 8
+
+        for (text, action) in actions {
+            let button = UIButton(type: .system)
+            button.setTitle(text, for: .normal)
+            button.setTitleColor(.systemBlue, for: .normal)
+            button.backgroundColor = .secondarySystemBackground
+            button.layer.cornerRadius = 10
+            button.contentHorizontalAlignment = .left
+            button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 14, bottom: 0, right: 14)
+            button.heightAnchor.constraint(equalToConstant: 48).isActive = true
+            button.addAction(UIAction { [weak self] _ in
+                self?.dismiss(animated: true, completion: action)
+            }, for: .touchUpInside)
+            stack.addArrangedSubview(button)
+        }
+
+        let cancel = UIButton(type: .system)
+        cancel.setTitle("Cancel", for: .normal)
+        cancel.setTitleColor(.systemBlue, for: .normal)
+        cancel.backgroundColor = .secondarySystemBackground
+        cancel.layer.cornerRadius = 10
+        cancel.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        cancel.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) }, for: .touchUpInside)
+
+        let root = UIStackView(arrangedSubviews: [title, stack, cancel])
+        root.axis = .vertical
+        root.spacing = 12
+        root.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(root)
+
+        NSLayoutConstraint.activate([
+            root.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            root.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            root.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
+            root.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
+        ])
     }
 }
