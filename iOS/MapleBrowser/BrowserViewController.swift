@@ -197,13 +197,17 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         decisionHandler(.allow)
     }
 
-    @available(iOS 14.0, *)
+    @available(iOS 13.0, *)
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
                  decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         if !navigationResponse.canShowMIMEType,
            let url = navigationResponse.response.url {
-            decisionHandler(.download)
-            downloadManager.start(url: url)
+            if #available(iOS 14.5, *) {
+                decisionHandler(.download)
+                downloadManager.start(url: url)
+            } else {
+                decisionHandler(.cancel)
+            }
             return
         }
         decisionHandler(.allow)
@@ -429,7 +433,7 @@ private final class MapleDownloadManager: NSObject, URLSessionDownloadDelegate {
     func start(url: URL) {
         let id = UUID().uuidString
         let name = url.lastPathComponent.isEmpty ? "Download" : url.lastPathComponent
-        var item = Item(id: id, name: name, url: url.absoluteString, progress: 0, status: "Downloading", filePath: nil, resumeData: nil)
+        let item = Item(id: id, name: name, url: url.absoluteString, progress: 0, status: "Downloading", filePath: nil, resumeData: nil)
         items.insert(item, at: 0)
         save()
         let task = session.downloadTask(with: url)
