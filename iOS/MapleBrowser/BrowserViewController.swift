@@ -36,7 +36,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         addressBar.clearButtonMode = .whileEditing
         addressBar.addTarget(self, action: #selector(addressSubmitted), for: .editingDidEndOnExit)
 
-        let top = UIStackView(arrangedSubviews: [addressBar])        let top = UIStackView(arrangedSubviews: [addressBar])
+        let top = UIStackView(arrangedSubviews: [addressBar])
         top.translatesAutoresizingMaskIntoConstraints = false
 
         bottomBar.axis = .horizontal
@@ -297,7 +297,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         panel.modalPresentationStyle = .pageSheet
         if #available(iOS 15.0, *) {
             if let sheet = panel.sheetPresentationController {
-                sheet.detents = [.medium, .large]
+                sheet.detents = [.medium(), .large()]
                 sheet.prefersGrabberVisible = true
             }
         }
