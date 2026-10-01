@@ -28,22 +28,33 @@ jobs:
       - name: Build unsigned iOS app
         run: |
           set -e
-          xcodebuild             -project iOS/MapleBrowser.xcodeproj             -scheme MapleBrowser             -sdk iphoneos             -configuration Release             IPHONEOS_DEPLOYMENT_TARGET=13.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
+          xcodebuild \
+            -project iOS/MapleBrowser.xcodeproj \
+            -scheme MapleBrowser \
+            -sdk iphoneos \
+            -configuration Release \
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build
 
       - name: Package IPA
         run: |
           set -e
+          rm -rf artifacts
           mkdir -p artifacts/Payload
           APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -path "*/Build/Products/Release-iphoneos/Maple Browser.app" -print -quit)"
           test -n "$APP_PATH"
           cp -R "$APP_PATH" artifacts/Payload/
           test -f "artifacts/Payload/Maple Browser.app/MapleBrowser"
+          test -x "artifacts/Payload/Maple Browser.app/MapleBrowser"
           /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "artifacts/Payload/Maple Browser.app/Info.plist" | grep -qx "MapleBrowser"
+          file "artifacts/Payload/Maple Browser.app/MapleBrowser"
           cd artifacts
-          /usr/bin/zip -qry MapleBrowser-iOS.ipa Payload
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent Payload MapleBrowser-iOS.ipa
           cd ..
-          test -f artifacts/MapleBrowser-iOS.ipa
           test -s artifacts/MapleBrowser-iOS.ipa
+          /usr/bin/unzip -tq artifacts/MapleBrowser-iOS.ipa
 
       - name: Upload iOS build
         uses: actions/upload-artifact@v4
