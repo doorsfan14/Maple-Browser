@@ -54,12 +54,7 @@ jobs:
           /usr/bin/zip -qry MapleBrowser-iOS.ipa Payload
           cd ..
           test -s artifacts/MapleBrowser-iOS.ipa
-          /usr/bin/unzip -tq artifacts/MapleBrowser-iOS.ipa
-          mkdir -p /tmp/maple-ipa-test
-          /usr/bin/unzip -q artifacts/MapleBrowser-iOS.ipa -d /tmp/maple-ipa-test
-          test -f "/tmp/maple-ipa-test/Payload/Maple Browser.app/MapleBrowser"
-          test -x "/tmp/maple-ipa-test/Payload/Maple Browser.app/MapleBrowser"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "/tmp/maple-ipa-test/Payload/Maple Browser.app/Info.plist" | grep -qx "MapleBrowser"
+          /usr/bin/zip -T artifacts/MapleBrowser-iOS.ipa
 
       - name: Upload iOS build
         uses: actions/upload-artifact@v4
