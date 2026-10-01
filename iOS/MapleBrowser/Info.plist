@@ -5,6 +5,7 @@
     <key>CFBundleDisplayName</key><string>Maple Browser</string>
     <key>CFBundleIdentifier</key><string>net.teamceleste.maple</string>
     <key>CFBundleName</key><string>MapleBrowser</string>
+    <key>CFBundleExecutable</key><string>MapleBrowser</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>UILaunchScreen</key><dict/>
