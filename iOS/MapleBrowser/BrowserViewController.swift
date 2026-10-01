@@ -242,7 +242,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
                 self?.closeTab(tab: tab)
             }
         )
-        controller.modalPresentationStyle = .fullScreen
+        controller.modalPresentationStyle = .custom
+        controller.transitioningDelegate = controller
         present(controller, animated: true)
     }
 
@@ -361,7 +362,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 }
 
 
-private final class MapleTabsViewController: UIViewController {
+private final class MapleTabsViewController: UIViewController, UIViewControllerTransitioningDelegate, UIViewControllerAnimatedTransitioning {
     private let tabs: [WKWebView]
     private var activeIndex: Int
     private let onSelect: (Int) -> Void
@@ -373,6 +374,7 @@ private final class MapleTabsViewController: UIViewController {
     private var cardViews: [UIView] = []
     private var previewViews: [UIImageView] = []
     private var hasPlayedOpenAnimation = false
+    private var isPresentingTransition = true
 
     init(tabs: [WKWebView], activeIndex: Int,
          onSelect: @escaping (Int) -> Void,
@@ -384,9 +386,101 @@ private final class MapleTabsViewController: UIViewController {
         self.onNewTab = onNewTab
         self.onClose = onClose
         super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .custom
+        transitioningDelegate = self
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func animationController(forPresented presented: UIViewController,
+                             presenting: UIViewController,
+                             source: UIViewController) -> UIViewControllerAnimatedTransitioning? {
+        isPresentingTransition = true
+        return self
+    }
+
+    func animationController(forDismissed dismissed: UIViewController) -> UIViewControllerAnimatedTransitioning? {
+        isPresentingTransition = false
+        return self
+    }
+
+    func transitionDuration(using transitionContext: UIViewControllerContextTransitioning?) -> TimeInterval {
+        0.46
+    }
+
+    func animateTransition(using transitionContext: UIViewControllerContextTransitioning) {
+        let container = transitionContext.containerView
+        let duration = transitionDuration(using: transitionContext)
+
+        if isPresentingTransition {
+            guard let toView = transitionContext.view(forKey: .to) else {
+                transitionContext.completeTransition(false)
+                return
+            }
+
+            container.addSubview(toView)
+            toView.frame = transitionContext.finalFrame(for: transitionContext.viewController(forKey: .to)!)
+            toView.alpha = 1
+
+            // Start the entire switcher as the active website-sized surface.
+            // The card itself is then animated down into its real app-switcher size.
+            toView.layoutIfNeeded()
+
+            let activeCard = cardViews.indices.contains(activeIndex) ? cardViews[activeIndex] : nil
+            let activePreview = previewViews.indices.contains(activeIndex) ? previewViews[activeIndex] : nil
+
+            let finalCardTransform = activeCard?.transform ?? .identity
+            let finalPreviewTransform = activePreview?.transform ?? .identity
+
+            activeCard?.transform = CGAffineTransform(scaleX: 1.32, y: 1.32)
+            activeCard?.alpha = 0
+            activePreview?.transform = CGAffineTransform(scaleX: 1.06, y: 1.06)
+
+            // Keep the surrounding UI quiet while the webpage shrinks into its card.
+            for (index, card) in cardViews.enumerated() where index != activeIndex {
+                card.alpha = 0
+                card.transform = CGAffineTransform(scaleX: 0.94, y: 0.94)
+            }
+
+            let timing = UISpringTimingParameters(dampingRatio: 0.88, initialVelocity: CGVector(dx: 0, dy: 0))
+            let animator = UIViewPropertyAnimator(duration: duration, timingParameters: timing)
+            animator.addAnimations {
+                activeCard?.transform = finalCardTransform
+                activeCard?.alpha = 1
+                activePreview?.transform = finalPreviewTransform
+
+                for (index, card) in self.cardViews.enumerated() where index != self.activeIndex {
+                    card.alpha = 0.72
+                    card.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
+                }
+            }
+            animator.addCompletion { _ in
+                transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
+            }
+            animator.startAnimation()
+        } else {
+            guard let fromView = transitionContext.view(forKey: .from) else {
+                transitionContext.completeTransition(false)
+                return
+            }
+
+            UIViewPropertyAnimator.runningPropertyAnimator(
+                withDuration: duration,
+                delay: 0,
+                usingSpringWithDamping: 0.92,
+                initialSpringVelocity: 0,
+                options: [.beginFromCurrentState, .curveEaseIn],
+                animations: {
+                    fromView.alpha = 0
+                    fromView.transform = CGAffineTransform(scaleX: 0.94, y: 0.94)
+                },
+                completion: { _ in
+                    fromView.transform = .identity
+                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
+                }
+            )
+        }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -489,31 +583,6 @@ private final class MapleTabsViewController: UIViewController {
         super.viewDidAppear(animated)
         guard !hasPlayedOpenAnimation else { return }
         hasPlayedOpenAnimation = true
-
-        let activeCard = activeIndex < cardViews.count ? cardViews[activeIndex] : nil
-        let activeStart = CGAffineTransform(scaleX: 0.78, y: 0.78)
-
-        activeCard?.transform = activeStart
-        activeCard?.alpha = 0
-
-        for (index, card) in cardViews.enumerated() where index != activeIndex {
-            card.transform = CGAffineTransform(scaleX: 0.86, y: 0.86)
-            card.alpha = 0
-        }
-
-        UIView.animateKeyframes(withDuration: 0.52, delay: 0,
-                                options: [.calculationModeCubic, .beginFromCurrentState]) {
-            UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.72) {
-                activeCard?.transform = .identity
-                activeCard?.alpha = 1
-            }
-            UIView.addKeyframe(withRelativeStartTime: 0.28, relativeDuration: 0.72) {
-                for (index, card) in self.cardViews.enumerated() where index != self.activeIndex {
-                    card.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
-                    card.alpha = 0.72
-                }
-            }
-        }
     }
 
     private func addCard(for index: Int) {
@@ -592,8 +661,9 @@ private final class MapleTabsViewController: UIViewController {
 
         card.transform = index == activeIndex ? .identity : CGAffineTransform(scaleX: 0.92, y: 0.92)
         card.alpha = index == activeIndex ? 1 : 0.72
-        card.layer.shouldRasterize = true
-        card.layer.rasterizationScale = UIScreen.main.scale
+        // Avoid layer rasterization during scroll/transform animations; it can make
+        // overlapping cards visibly snap between cached and uncached surfaces.
+        card.layer.shouldRasterize = false
     }
 
     private func privateTabTitle(for index: Int) -> String { "" }
@@ -605,11 +675,13 @@ private final class MapleTabsViewController: UIViewController {
             let imageView = previewViews[index]
 
             let configuration = WKSnapshotConfiguration()
-            configuration.afterScreenUpdates = true
+            configuration.afterScreenUpdates = false
 
             webView.takeSnapshot(with: configuration) { [weak imageView] image, _ in
                 guard let image else { return }
-                imageView?.image = image
+                DispatchQueue.main.async {
+                    imageView?.image = image
+                }
             }
         }
     }
@@ -649,6 +721,7 @@ private final class MapleTabsViewController: UIViewController {
     @objc private func newTab() { onNewTab(false) }
     @objc private func newPrivateTab() { onNewTab(true) }
 }
+
 
 private final class ActionPanelViewController: UIViewController {
     private let panelTitle: String
