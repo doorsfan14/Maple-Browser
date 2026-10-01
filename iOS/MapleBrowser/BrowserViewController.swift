@@ -225,14 +225,25 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     @objc private func newTab() { addTab(privateMode: false, url: nil) }
 
     @objc private func showTabs() {
-        var actions: [(String, () -> Void)] = []
-        for i in tabs.indices {
-            actions.append(("\(i + 1) · \(tabs[i].title ?? "New Tab")", { [weak self] in self?.switchTab(i) }))
-        }
-        actions.append(("New Tab", { [weak self] in self?.addTab(privateMode: false, url: nil) }))
-        actions.append(("New Private Tab", { [weak self] in self?.addTab(privateMode: true, url: nil) }))
-        if tabs.count > 1 { actions.append(("Close Current Tab", { [weak self] in self?.closeCurrentTab() })) }
-        showActionPanel(title: "Tabs · \(tabs.count)", actions: actions)
+        let controller = MapleTabsViewController(
+            tabs: tabs,
+            activeIndex: activeIndex,
+            onSelect: { [weak self] index in
+                self?.dismiss(animated: true) {
+                    self?.switchTab(index)
+                }
+            },
+            onNewTab: { [weak self] privateMode in
+                self?.dismiss(animated: true) {
+                    self?.addTab(privateMode: privateMode, url: nil)
+                }
+            },
+            onClose: { [weak self] index in
+                self?.closeTab(at: index)
+            }
+        )
+        controller.modalPresentationStyle = .fullScreen
+        present(controller, animated: true)
     }
 
     private func switchTab(_ index: Int) {
@@ -242,10 +253,23 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
 
     private func closeCurrentTab() {
-        guard tabs.count > 1 else { return }
-        tabs.remove(at: activeIndex)
-        privateTabs.remove(at: activeIndex)
-        activeIndex = min(activeIndex, tabs.count - 1)
+        closeTab(at: activeIndex)
+    }
+
+    private func closeTab(at index: Int) {
+        guard tabs.count > 1, tabs.indices.contains(index) else { return }
+        tabs[index].stopLoading()
+        tabs[index].navigationDelegate = nil
+        tabs[index].uiDelegate = nil
+        tabs.remove(at: index)
+        privateTabs.remove(at: index)
+        if activeIndex >= tabs.count {
+            activeIndex = tabs.count - 1
+        } else if index < activeIndex {
+            activeIndex -= 1
+        } else if index == activeIndex {
+            activeIndex = min(activeIndex, tabs.count - 1)
+        }
         showActiveWebView()
     }
 
@@ -329,6 +353,251 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         present(panel, animated: true)
     }
 
+}
+
+
+private final class MapleTabsViewController: UIViewController {
+    private let tabs: [WKWebView]
+    private var activeIndex: Int
+    private let onSelect: (Int) -> Void
+    private let onNewTab: (Bool) -> Void
+    private let onClose: (Int) -> Void
+    private let scrollView = UIScrollView()
+    private let stack = UIStackView()
+    private var cardViews: [UIView] = []
+
+    init(tabs: [WKWebView], activeIndex: Int,
+         onSelect: @escaping (Int) -> Void,
+         onNewTab: @escaping (Bool) -> Void,
+         onClose: @escaping (Int) -> Void) {
+        self.tabs = tabs
+        self.activeIndex = activeIndex
+        self.onSelect = onSelect
+        self.onNewTab = onNewTab
+        self.onClose = onClose
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+
+        let header = UIView()
+        header.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(header)
+
+        let title = UILabel()
+        title.text = "Tabs"
+        title.font = .systemFont(ofSize: 28, weight: .bold)
+        title.textColor = .label
+        title.translatesAutoresizingMaskIntoConstraints = false
+
+        let close = UIButton(type: .system)
+        close.setImage(UIImage(systemName: "xmark"), for: .normal)
+        close.tintColor = .label
+        close.addTarget(self, action: #selector(dismissTabs), for: .touchUpInside)
+        close.translatesAutoresizingMaskIntoConstraints = false
+
+        let privateButton = UIButton(type: .system)
+        privateButton.setImage(UIImage(systemName: "eye.slash"), for: .normal)
+        privateButton.tintColor = .label
+        privateButton.addTarget(self, action: #selector(newPrivateTab), for: .touchUpInside)
+        privateButton.translatesAutoresizingMaskIntoConstraints = false
+
+        header.addSubview(title)
+        header.addSubview(privateButton)
+        header.addSubview(close)
+
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 18
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        scrollView.alwaysBounceVertical = true
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(stack)
+        view.addSubview(scrollView)
+
+        let newButton = UIButton(type: .system)
+        newButton.setTitle("＋ New Tab", for: .normal)
+        newButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+        newButton.backgroundColor = .secondarySystemBackground
+        newButton.setTitleColor(.label, for: .normal)
+        newButton.layer.cornerRadius = 12
+        newButton.addTarget(self, action: #selector(newTab), for: .touchUpInside)
+        newButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(newButton)
+
+        NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            header.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            header.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            header.heightAnchor.constraint(equalToConstant: 44),
+
+            title.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+            title.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+
+            close.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+            close.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            close.widthAnchor.constraint(equalToConstant: 36),
+            close.heightAnchor.constraint(equalToConstant: 36),
+
+            privateButton.trailingAnchor.constraint(equalTo: close.leadingAnchor, constant: -8),
+            privateButton.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            privateButton.widthAnchor.constraint(equalToConstant: 36),
+            privateButton.heightAnchor.constraint(equalToConstant: 36),
+
+            scrollView.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 10),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: newButton.topAnchor, constant: -12),
+
+            stack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 18),
+            stack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -24),
+            stack.centerXAnchor.constraint(equalTo: scrollView.frameLayoutGuide.centerXAnchor),
+
+            newButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 20),
+            newButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -20),
+            newButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
+            newButton.heightAnchor.constraint(equalToConstant: 48)
+        ])
+
+        for index in tabs.indices {
+            addCard(for: index)
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.scrollToActive(animated: false)
+        }
+    }
+
+    private func addCard(for index: Int) {
+        let card = UIView()
+        card.backgroundColor = .secondarySystemBackground
+        card.layer.cornerRadius = 20
+        card.layer.cornerCurve = .continuous
+        card.layer.shadowColor = UIColor.black.cgColor
+        card.layer.shadowOpacity = 0.18
+        card.layer.shadowRadius = 12
+        card.layer.shadowOffset = CGSize(width: 0, height: 5)
+        card.translatesAutoresizingMaskIntoConstraints = false
+        card.tag = index
+
+        let preview = tabs[index].snapshotView(afterScreenUpdates: true) ?? UIView()
+        preview.translatesAutoresizingMaskIntoConstraints = false
+        preview.isUserInteractionEnabled = false
+        preview.layer.cornerRadius = 16
+        preview.clipsToBounds = true
+        card.addSubview(preview)
+
+        let overlay = UIView()
+        overlay.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.94)
+        overlay.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(overlay)
+
+        let label = UILabel()
+        let title = tabs[index].title?.isEmpty == false ? tabs[index].title! : "New Tab"
+        label.text = privateTabTitle(for: index) + title
+        label.font = .systemFont(ofSize: 15, weight: .semibold)
+        label.textColor = .label
+        label.numberOfLines = 1
+        label.translatesAutoresizingMaskIntoConstraints = false
+        overlay.addSubview(label)
+
+        let close = UIButton(type: .system)
+        close.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
+        close.tintColor = .secondaryLabel
+        close.tag = index
+        close.addTarget(self, action: #selector(closeCard(_:)), for: .touchUpInside)
+        close.translatesAutoresizingMaskIntoConstraints = false
+        overlay.addSubview(close)
+
+        let tap = UITapGestureRecognizer(target: self, action: #selector(selectCard(_:)))
+        card.addGestureRecognizer(tap)
+
+        stack.addArrangedSubview(card)
+        cardViews.append(card)
+
+        NSLayoutConstraint.activate([
+            card.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.84),
+            card.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.58),
+
+            preview.topAnchor.constraint(equalTo: card.topAnchor),
+            preview.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            preview.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            preview.bottomAnchor.constraint(equalTo: card.bottomAnchor),
+
+            overlay.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            overlay.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            overlay.bottomAnchor.constraint(equalTo: card.bottomAnchor),
+            overlay.heightAnchor.constraint(equalToConstant: 48),
+
+            label.leadingAnchor.constraint(equalTo: overlay.leadingAnchor, constant: 14),
+            label.centerYAnchor.constraint(equalTo: overlay.centerYAnchor),
+            label.trailingAnchor.constraint(equalTo: close.leadingAnchor, constant: -8),
+
+            close.trailingAnchor.constraint(equalTo: overlay.trailingAnchor, constant: -10),
+            close.centerYAnchor.constraint(equalTo: overlay.centerYAnchor),
+            close.widthAnchor.constraint(equalToConstant: 32),
+            close.heightAnchor.constraint(equalToConstant: 32)
+        ])
+
+        card.transform = index == activeIndex ? .identity : CGAffineTransform(scaleX: 0.94, y: 0.94)
+        card.alpha = index == activeIndex ? 1 : 0.88
+    }
+
+    private func privateTabTitle(for index: Int) -> String {
+        return tabs[index].configuration.websiteDataStore == WKWebsiteDataStore.nonPersistent()
+            ? "Private · "
+            : ""
+    }
+
+    private func scrollToActive(animated: Bool) {
+        guard activeIndex < cardViews.count else { return }
+        let card = cardViews[activeIndex]
+        let rect = card.convert(card.bounds, to: scrollView)
+        let targetY = max(0, rect.midY - scrollView.bounds.height / 2)
+        scrollView.setContentOffset(CGPoint(x: 0, y: targetY), animated: animated)
+    }
+
+    @objc private func selectCard(_ gesture: UITapGestureRecognizer) {
+        guard let card = gesture.view, card.tag >= 0 else { return }
+        onSelect(card.tag)
+    }
+
+    @objc private func closeCard(_ sender: UIButton) {
+        let index = sender.tag
+        guard index < cardViews.count else { return }
+        let card = cardViews[index]
+
+        // Each close animation gets its own UIViewPropertyAnimator.
+        // A second close can therefore run concurrently instead of cancelling the first.
+        let animator = UIViewPropertyAnimator(duration: 0.28, curve: .easeInOut) {
+            card.transform = CGAffineTransform(scaleX: 0.72, y: 0.72)
+                .translatedBy(x: 0, y: 30)
+            card.alpha = 0
+        }
+        animator.addCompletion { [weak self, weak card] _ in
+            card?.removeFromSuperview()
+            self?.onClose(index)
+        }
+        animator.startAnimation()
+    }
+
+    @objc private func dismissTabs() {
+        dismiss(animated: true)
+    }
+
+    @objc private func newTab() {
+        onNewTab(false)
+    }
+
+    @objc private func newPrivateTab() {
+        onNewTab(true)
+    }
 }
 
 
