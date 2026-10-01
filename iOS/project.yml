@@ -2,12 +2,12 @@ name: MapleBrowser
 options:
   bundleIdPrefix: net.teamceleste
   deploymentTarget:
-    iOS: "12.0"
+    iOS: "13.0"
 targets:
   MapleBrowser:
     type: application
     platform: iOS
-    deploymentTarget: "12.0"
+    deploymentTarget: "13.0"
     sources:
       - path: MapleBrowser
     settings:
@@ -15,7 +15,7 @@ targets:
       PRODUCT_NAME: Maple Browser
       INFOPLIST_FILE: MapleBrowser/Info.plist
       SWIFT_VERSION: "5.0"
-      IPHONEOS_DEPLOYMENT_TARGET: "12.0"
+      IPHONEOS_DEPLOYMENT_TARGET: "13.0"
       TARGETED_DEVICE_FAMILY: "1,2"
     frameworks:
       - WebKit.framework
