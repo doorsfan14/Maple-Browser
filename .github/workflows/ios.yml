@@ -76,7 +76,7 @@ jobs:
           ditto "$APP_PATH" "artifacts/Payload/MapleBrowser.app"
 
           cd artifacts
-          /usr/bin/ditto -c -k --norsrc Payload MapleBrowser-iOS.ipa
+          /usr/bin/zip -r -X MapleBrowser-iOS.ipa Payload
           cd ..
 
           test -s artifacts/MapleBrowser-iOS.ipa
