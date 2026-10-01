@@ -371,6 +371,8 @@ private final class MapleTabsViewController: UIViewController {
     private let scrollView = UIScrollView()
     private let stack = UIStackView()
     private var cardViews: [UIView] = []
+    private var previewViews: [UIImageView] = []
+    private var hasPlayedOpenAnimation = false
 
     init(tabs: [WKWebView], activeIndex: Int,
          onSelect: @escaping (Int) -> Void,
@@ -419,6 +421,7 @@ private final class MapleTabsViewController: UIViewController {
         scrollView.showsHorizontalScrollIndicator = false
         scrollView.alwaysBounceHorizontal = true
         scrollView.decelerationRate = .fast
+        scrollView.clipsToBounds = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(stack)
         view.addSubview(scrollView)
@@ -478,6 +481,38 @@ private final class MapleTabsViewController: UIViewController {
 
         DispatchQueue.main.async { [weak self] in
             self?.scrollToActive(animated: false)
+            self?.refreshSnapshots()
+        }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !hasPlayedOpenAnimation else { return }
+        hasPlayedOpenAnimation = true
+
+        let activeCard = activeIndex < cardViews.count ? cardViews[activeIndex] : nil
+        let activeStart = CGAffineTransform(scaleX: 0.78, y: 0.78)
+
+        activeCard?.transform = activeStart
+        activeCard?.alpha = 0
+
+        for (index, card) in cardViews.enumerated() where index != activeIndex {
+            card.transform = CGAffineTransform(scaleX: 0.86, y: 0.86)
+            card.alpha = 0
+        }
+
+        UIView.animateKeyframes(withDuration: 0.52, delay: 0,
+                                options: [.calculationModeCubic, .beginFromCurrentState]) {
+            UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.72) {
+                activeCard?.transform = .identity
+                activeCard?.alpha = 1
+            }
+            UIView.addKeyframe(withRelativeStartTime: 0.28, relativeDuration: 0.72) {
+                for (index, card) in self.cardViews.enumerated() where index != self.activeIndex {
+                    card.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
+                    card.alpha = 0.72
+                }
+            }
         }
     }
 
@@ -490,14 +525,16 @@ private final class MapleTabsViewController: UIViewController {
         card.layer.shadowOpacity = 0.18
         card.layer.shadowRadius = 12
         card.layer.shadowOffset = CGSize(width: 0, height: 5)
+        card.clipsToBounds = false
         card.translatesAutoresizingMaskIntoConstraints = false
         card.tag = index
 
-        let preview = tabs[index].snapshotView(afterScreenUpdates: true) ?? UIView()
-        preview.translatesAutoresizingMaskIntoConstraints = false
-        preview.isUserInteractionEnabled = false
-        preview.layer.cornerRadius = 16
+        let preview = UIImageView()
+        preview.backgroundColor = .tertiarySystemBackground
+        preview.contentMode = .scaleAspectFit
         preview.clipsToBounds = true
+        preview.isUserInteractionEnabled = false
+        preview.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(preview)
 
         let overlay = UIView()
@@ -527,6 +564,7 @@ private final class MapleTabsViewController: UIViewController {
 
         stack.addArrangedSubview(card)
         cardViews.append(card)
+        previewViews.append(preview)
 
         NSLayoutConstraint.activate([
             card.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.72),
@@ -559,6 +597,22 @@ private final class MapleTabsViewController: UIViewController {
     }
 
     private func privateTabTitle(for index: Int) -> String { "" }
+
+    private func refreshSnapshots() {
+        for index in tabs.indices {
+            guard index < previewViews.count else { continue }
+            let webView = tabs[index]
+            let imageView = previewViews[index]
+
+            let configuration = WKSnapshotConfiguration()
+            configuration.afterScreenUpdates = true
+
+            webView.takeSnapshot(with: configuration) { [weak imageView] image, _ in
+                guard let image else { return }
+                imageView?.image = image
+            }
+        }
+    }
 
     private func scrollToActive(animated: Bool) {
         guard activeIndex < cardViews.count else { return }
