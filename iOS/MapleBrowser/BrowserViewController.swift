@@ -67,7 +67,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             content.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             content.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             content.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            content.bottomAnchor.constraint(equalTo: bottomChrome.topAnchor),
+            content.bottomAnchor.constraint(equalTo: bottomChrome.topAnchor, constant: -10),
             bottomChrome.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             bottomChrome.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             bottomChrome.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -5),
@@ -417,7 +417,7 @@ private final class MapleTabsViewController: UIViewController {
 
         stack.axis = .vertical
         stack.alignment = .center
-        stack.spacing = 18
+        stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         scrollView.alwaysBounceVertical = true
@@ -528,7 +528,7 @@ private final class MapleTabsViewController: UIViewController {
 
         NSLayoutConstraint.activate([
             card.widthAnchor.constraint(equalTo: view.widthAnchor, multiplier: 0.84),
-            card.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.58),
+            card.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.52),
 
             preview.topAnchor.constraint(equalTo: card.topAnchor),
             preview.leadingAnchor.constraint(equalTo: card.leadingAnchor),
@@ -552,6 +552,8 @@ private final class MapleTabsViewController: UIViewController {
 
         card.transform = index == activeIndex ? .identity : CGAffineTransform(scaleX: 0.94, y: 0.94)
         card.alpha = index == activeIndex ? 1 : 0.88
+        card.layer.shouldRasterize = true
+        card.layer.rasterizationScale = UIScreen.main.scale
     }
 
     private func privateTabTitle(for index: Int) -> String {
@@ -577,16 +579,19 @@ private final class MapleTabsViewController: UIViewController {
         let card = cardViews[index]
         let tab = tabs[index]
 
-        // Each close animation gets its own UIViewPropertyAnimator.
-        // A second close can therefore run concurrently instead of cancelling the first.
-        let animator = UIViewPropertyAnimator(duration: 0.28, curve: .easeInOut) {
-            card.transform = CGAffineTransform(scaleX: 0.72, y: 0.72)
-                .translatedBy(x: 0, y: 30)
+        // Keep each card's animator independent so several cards can close together.
+        // The spring timing is closer to UIKit's natural, physical-feeling transitions.
+        let animator = UIViewPropertyAnimator(duration: 0.42, dampingRatio: 0.86) {
+            card.transform = CGAffineTransform(scaleX: 0.86, y: 0.86)
+                .translatedBy(x: 0, y: 18)
             card.alpha = 0
         }
         animator.addCompletion { [weak self, weak card] _ in
             card?.removeFromSuperview()
             self?.onClose(tab)
+            UIViewPropertyAnimator(duration: 0.32, dampingRatio: 0.9) {
+                self?.view.layoutIfNeeded()
+            }.startAnimation()
         }
         animator.startAnimation()
     }
