@@ -8,7 +8,6 @@ import android.widget.LinearLayout;
 import android.widget.EditText;
 import android.view.KeyEvent;
 import android.view.inputmethod.EditorInfo;
-import android.graphics.Color;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -16,6 +15,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
 
@@ -32,22 +32,41 @@ public class MainActivity extends Activity {
         address.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_GO ||
                 (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
-                String text = address.getText().toString().trim();
-                if (!text.isEmpty()) {
-                    String url = text.contains("://") ? text :
-                        (text.contains(".") && !text.contains(" ") ? "https://" + text :
-                        "https://www.google.com/search?q=" + android.net.Uri.encode(text));
-                    webView.loadUrl(url);
-                }
+                loadInput(address.getText().toString());
                 return true;
             }
             return false;
         });
 
-        root.addView(address, new LinearLayout.LayoutParams(-1, -2));
-        root.addView(webView, new LinearLayout.LayoutParams(-1, 0, 1));
+        root.addView(address, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+        root.addView(webView, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1
+        ));
+
         setContentView(root);
         webView.loadUrl("https://www.google.com");
+    }
+
+    private void loadInput(String input) {
+        String text = input.trim();
+        if (text.isEmpty()) return;
+
+        String url;
+        if (text.contains("://")) {
+            url = text;
+        } else if (text.contains(".") && !text.contains(" ")) {
+            url = "https://" + text;
+        } else {
+            url = "https://www.google.com/search?q=" +
+                android.net.Uri.encode(text);
+        }
+
+        webView.loadUrl(url);
     }
 
     @Override public void onBackPressed() {
