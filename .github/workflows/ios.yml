@@ -4,14 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out source
+        uses: actions/checkout@v4
 
-      - name: Select Xcode 15.4
+      - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: "15.4"
@@ -22,6 +24,21 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec iOS/project.yml --project iOS/MapleBrowser.xcodeproj
 
-      - name: Build iOS 13-compatible app
+      - name: Build unsigned iOS app
         run: |
+          set -e
           xcodebuild             -project iOS/MapleBrowser.xcodeproj             -scheme MapleBrowser             -sdk iphoneos             -configuration Release             IPHONEOS_DEPLOYMENT_TARGET=13.0             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build
+
+      - name: Package build
+        run: |
+          set -e
+          mkdir -p artifacts
+          APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -path "*/Build/Products/Release-iphoneos/Maple Browser.app" -print -quit)"
+          test -n "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" artifacts/MapleBrowser-iOS13-unsigned.zip
+
+      - name: Upload iOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: MapleBrowser-iOS13-unsigned
+          path: artifacts/MapleBrowser-iOS13-unsigned.zip
