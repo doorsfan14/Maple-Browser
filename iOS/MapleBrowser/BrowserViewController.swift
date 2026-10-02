@@ -7,7 +7,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     private let content = UIView()
     private let bottomBar = UIStackView()
     private let bottomChrome = UIStackView()
-    private let chromeBar = UIView()
+    private let bottomChromeBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+    private let addressBarContainer = UIView()
+    private let addressBarBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
     private let downloadManager = MapleDownloadManager()
     private var tabs: [WKWebView] = []
     private var privateTabs: [Bool] = []
@@ -34,12 +36,31 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         addressBar.autocapitalizationType = .none
         addressBar.autocorrectionType = .no
         addressBar.returnKeyType = .go
-        addressBar.borderStyle = .roundedRect
-        addressBar.backgroundColor = .secondarySystemBackground
+        addressBar.borderStyle = .none
+        addressBar.backgroundColor = .clear
         addressBar.textColor = .label
         addressBar.tintColor = .systemBlue
         addressBar.clearButtonMode = .whileEditing
         addressBar.addTarget(self, action: #selector(addressSubmitted), for: .editingDidEndOnExit)
+        addressBar.translatesAutoresizingMaskIntoConstraints = false
+
+        addressBarContainer.translatesAutoresizingMaskIntoConstraints = false
+        addressBarContainer.clipsToBounds = true
+        addressBarContainer.layer.cornerRadius = 14
+        addressBarContainer.layer.cornerCurve = .continuous
+        addressBarBlur.translatesAutoresizingMaskIntoConstraints = false
+        addressBarContainer.addSubview(addressBarBlur)
+        addressBarContainer.addSubview(addressBar)
+        NSLayoutConstraint.activate([
+            addressBarBlur.topAnchor.constraint(equalTo: addressBarContainer.topAnchor),
+            addressBarBlur.leadingAnchor.constraint(equalTo: addressBarContainer.leadingAnchor),
+            addressBarBlur.trailingAnchor.constraint(equalTo: addressBarContainer.trailingAnchor),
+            addressBarBlur.bottomAnchor.constraint(equalTo: addressBarContainer.bottomAnchor),
+            addressBar.topAnchor.constraint(equalTo: addressBarContainer.topAnchor),
+            addressBar.leadingAnchor.constraint(equalTo: addressBarContainer.leadingAnchor, constant: 14),
+            addressBar.trailingAnchor.constraint(equalTo: addressBarContainer.trailingAnchor, constant: -10),
+            addressBar.bottomAnchor.constraint(equalTo: addressBarContainer.bottomAnchor)
+        ])
 
         bottomBar.axis = .horizontal
         bottomBar.alignment = .center
@@ -50,29 +71,29 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
          toolbarButton("ellipsis", #selector(showMenu))].forEach { bottomBar.addArrangedSubview($0) }
 
         bottomChrome.axis = .vertical
-        bottomChrome.spacing = 7
+        bottomChrome.spacing = 6
         bottomChrome.translatesAutoresizingMaskIntoConstraints = false
+        bottomChrome.addSubview(bottomChromeBlur)
+        bottomChrome.addArrangedSubview(addressBarContainer)
         bottomChrome.addArrangedSubview(bottomBar)
+        bottomChrome.layer.cornerRadius = 20
+        bottomChrome.layer.cornerCurve = .continuous
+        bottomChrome.clipsToBounds = true
+
+        bottomChromeBlur.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            bottomChromeBlur.topAnchor.constraint(equalTo: bottomChrome.topAnchor),
+            bottomChromeBlur.leadingAnchor.constraint(equalTo: bottomChrome.leadingAnchor),
+            bottomChromeBlur.trailingAnchor.constraint(equalTo: bottomChrome.trailingAnchor),
+            bottomChromeBlur.bottomAnchor.constraint(equalTo: bottomChrome.bottomAnchor)
+        ])
 
         content.translatesAutoresizingMaskIntoConstraints = false
         content.backgroundColor = .clear
-        chromeBar.backgroundColor = .systemBackground
-        chromeBar.translatesAutoresizingMaskIntoConstraints = false
-        chromeBar.addSubview(addressBar)
-        addressBar.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(chromeBar)
         view.addSubview(content)
         view.addSubview(bottomChrome)
 
         NSLayoutConstraint.activate([
-            chromeBar.topAnchor.constraint(equalTo: view.topAnchor),
-            chromeBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            chromeBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            chromeBar.bottomAnchor.constraint(equalTo: content.topAnchor),
-            addressBar.leadingAnchor.constraint(equalTo: chromeBar.leadingAnchor, constant: 12),
-            addressBar.trailingAnchor.constraint(equalTo: chromeBar.trailingAnchor, constant: -12),
-            addressBar.bottomAnchor.constraint(equalTo: chromeBar.bottomAnchor, constant: -8),
-            addressBar.heightAnchor.constraint(equalToConstant: 42),
             content.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             content.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             content.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -80,6 +101,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             bottomChrome.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             bottomChrome.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             bottomChrome.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -5),
+            addressBarContainer.heightAnchor.constraint(equalToConstant: 42),
             bottomBar.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
@@ -120,7 +142,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     private func showActiveWebView() {
         showingHome = false
-        addressBar.isHidden = false
+        addressBarContainer.isHidden = false
 
         let w = webView
         w.translatesAutoresizingMaskIntoConstraints = false
@@ -160,7 +182,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     private func showHome() {
         webView.stopLoading()
         showingHome = true
-        addressBar.isHidden = true
+        addressBarContainer.isHidden = true
 
         let home = MapleHomeView { [weak self] query in
             self?.navigate(query)
@@ -479,15 +501,17 @@ private final class MapleHomeView: UIView {
         searchField.font = .systemFont(ofSize: 17, weight: .regular)
         searchField.textColor = .label
         searchField.tintColor = .label
-        searchField.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.72)
+        searchField.backgroundColor = .clear
         searchField.layer.cornerRadius = 22
         searchField.layer.cornerCurve = .continuous
-        searchField.layer.borderWidth = 1
-        searchField.layer.borderColor = UIColor.separator.withAlphaComponent(0.35).cgColor
-        searchField.layer.shadowColor = UIColor.black.cgColor
-        searchField.layer.shadowOpacity = 0.12
-        searchField.layer.shadowRadius = 18
-        searchField.layer.shadowOffset = CGSize(width: 0, height: 8)
+        searchField.layer.borderWidth = 0
+        searchField.layer.shadowOpacity = 0
+
+        let searchBlur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+        searchBlur.translatesAutoresizingMaskIntoConstraints = false
+        searchBlur.isUserInteractionEnabled = false
+        addSubview(searchBlur)
+        bringSubviewToFront(searchField)
         searchField.returnKeyType = .go
         searchField.autocapitalizationType = .none
         searchField.autocorrectionType = .no
@@ -512,6 +536,11 @@ private final class MapleHomeView: UIView {
             logoView.centerYAnchor.constraint(equalTo: centerYAnchor),
             logoView.widthAnchor.constraint(equalToConstant: 250),
             logoView.heightAnchor.constraint(equalToConstant: 250),
+
+            searchBlur.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
+            searchBlur.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
+            searchBlur.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -28),
+            searchBlur.heightAnchor.constraint(equalToConstant: 44),
 
             searchField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
             searchField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
@@ -579,15 +608,15 @@ private final class MapleWaveView: UIView {
         ambientLight.endPoint = CGPoint(x: 1.0, y: 0.85)
         layer.addSublayer(ambientLight)
 
-        // Exactly three broad ribbons. Each carries a restrained crimson detail.
+        // Exactly three broad ribbons. Crimson is a soft ambient glow, never a hard color stop.
 
         let crimson = UIColor(red: 0.88, green: 0.08, blue: 0.07, alpha: 1)
         let palettes: [[UIColor]] = [
-            [UIColor(red: 1.00, green: 0.64, blue: 0.08, alpha: 1), crimson,
+            [UIColor(red: 1.00, green: 0.64, blue: 0.08, alpha: 1),
              UIColor(red: 1.00, green: 0.42, blue: 0.04, alpha: 1)],
-            [UIColor(red: 1.00, green: 0.82, blue: 0.16, alpha: 1), crimson,
+            [UIColor(red: 1.00, green: 0.82, blue: 0.16, alpha: 1),
              UIColor(red: 0.96, green: 0.40, blue: 0.03, alpha: 1)],
-            [UIColor(red: 0.66, green: 0.32, blue: 0.95, alpha: 1), crimson,
+            [UIColor(red: 0.66, green: 0.32, blue: 0.95, alpha: 1),
              UIColor(red: 0.36, green: 0.10, blue: 0.72, alpha: 1)]
         ]
         let bases: [CGFloat] = [0.755, 0.835, 0.905]
@@ -608,6 +637,19 @@ private final class MapleWaveView: UIView {
                                base: bases[index], amplitude: amplitudes[index],
                                phase: CGFloat(index) * 1.15,
                                duration: durations[index], parallax: parallax[index]))
+
+            let glow = CAGradientLayer()
+            glow.type = .radial
+            glow.colors = [
+                crimson.withAlphaComponent(0.24).cgColor,
+                crimson.withAlphaComponent(0.09).cgColor,
+                UIColor.clear.cgColor
+            ]
+            glow.locations = [0, 0.42, 1]
+            glow.startPoint = CGPoint(x: 0.25 + CGFloat(index) * 0.22, y: 0.78)
+            glow.endPoint = CGPoint(x: 1, y: 0.78)
+            glow.opacity = 0.78
+            layer.addSublayer(glow)
         }
     }
 
@@ -618,6 +660,20 @@ private final class MapleWaveView: UIView {
         if lastSize != bounds.size {
             lastSize = bounds.size
             ambientLight.frame = bounds.insetBy(dx: -bounds.width * 0.25, dy: -bounds.height * 0.25)
+            var glowIndex = 0
+            for sublayer in layer.sublayers ?? [] where sublayer is CAGradientLayer {
+                if let glow = sublayer as? CAGradientLayer, glow.type == .radial, glow !== ambientLight, glow.mask == nil {
+                    let width = bounds.width * 0.48
+                    let height = bounds.height * 0.42
+                    glow.frame = CGRect(
+                        x: bounds.width * (0.04 + CGFloat(glowIndex) * 0.28),
+                        y: bounds.height * (0.60 - CGFloat(glowIndex) * 0.035),
+                        width: width,
+                        height: height
+                    )
+                    glowIndex += 1
+                }
+            }
             for wave in waves {
                 wave.gradient.frame = bounds
                 wave.shape.frame = bounds
@@ -758,11 +814,12 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
             container.addSubview(toView)
             toView.frame = transitionContext.finalFrame(for: transitionContext.viewController(forKey: .to)!)
-            toView.alpha = 0
-            toView.transform = CGAffineTransform(scaleX: 0.965, y: 0.965)
-            toView.layoutIfNeeded()
+            toView.backgroundColor = .clear
+            toView.alpha = 1
+            toView.transform = .identity
+
             isTransitioning = true
-            updateCardDepth()
+            cardViews.forEach { $0.alpha = 0 }
 
             let activePreview = previewViews.indices.contains(activeIndex) ? previewViews[activeIndex] : nil
 
@@ -774,27 +831,26 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                 overlay.frame = sourceFrame
                 container.addSubview(overlay)
 
-                activePreview.alpha = 0
                 let previewBounds = activePreview.convert(activePreview.bounds, to: container)
                 let targetRect = aspectFitRect(imageSize: snapshot.size, in: previewBounds)
 
                 let animator = UIViewPropertyAnimator(
                     duration: transitionDuration(using: transitionContext),
-                    timingParameters: UISpringTimingParameters(
-                        dampingRatio: 0.9,
-                        initialVelocity: CGVector(dx: 0, dy: 0.15)
+                    timingParameters: UICubicTimingParameters(
+                        controlPoint1: CGPoint(x: 0.18, y: 0.88),
+                        controlPoint2: CGPoint(x: 0.30, y: 1.0)
                     )
                 )
                 animator.addAnimations {
                     overlay.frame = targetRect
                     overlay.layer.cornerRadius = 18
-                    activePreview.alpha = 1
-                    toView.alpha = 1
-                    toView.transform = CGAffineTransform(scaleX: 1.0, y: 1.0)
                 }
                 animator.addCompletion { _ in
                     overlay.removeFromSuperview()
+                    self.cardViews.forEach { $0.alpha = 1 }
+                    self.isTransitioning = false
                     self.refreshSnapshots()
+                    self.updateCardDepth()
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
                 animator.startAnimation()
@@ -804,10 +860,10 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                     delay: 0,
                     options: [.curveEaseOut, .beginFromCurrentState]
                 ) {
-                    toView.alpha = 1
-                    toView.transform = .identity
+                    self.cardViews.forEach { $0.alpha = 1 }
                 } completion: { _ in
                     self.isTransitioning = false
+                    self.updateCardDepth()
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
             }
@@ -817,19 +873,51 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                 return
             }
 
-            let animator = UIViewPropertyAnimator(
-                duration: transitionDuration(using: transitionContext),
-                timingParameters: UISpringTimingParameters(dampingRatio: 0.92)
-            )
-            animator.addAnimations {
+            let selectedIndex = activeIndex
+            let selectedPreview = previewViews.indices.contains(selectedIndex) ? previewViews[selectedIndex] : nil
+            let sourceRect = selectedPreview?.convert(selectedPreview!.bounds, to: container) ?? fromView.bounds
+            let image = selectedPreview?.image ?? sourceSnapshot
+
+            if let image {
+                let overlay = UIImageView(image: image)
+                overlay.contentMode = .scaleAspectFit
+                overlay.clipsToBounds = true
+                overlay.backgroundColor = .systemBackground
+                overlay.frame = sourceRect
+                container.addSubview(overlay)
+
                 fromView.alpha = 0
-                fromView.transform = CGAffineTransform(scaleX: 0.96, y: 0.96)
+                let animator = UIViewPropertyAnimator(
+                    duration: transitionDuration(using: transitionContext),
+                    timingParameters: UICubicTimingParameters(
+                        controlPoint1: CGPoint(x: 0.70, y: 0.0),
+                        controlPoint2: CGPoint(x: 0.82, y: 0.12)
+                    )
+                )
+                animator.addAnimations {
+                    overlay.frame = self.sourceFrame
+                    overlay.layer.cornerRadius = 0
+                }
+                animator.addCompletion { _ in
+                    overlay.removeFromSuperview()
+                    fromView.transform = .identity
+                    fromView.alpha = 1
+                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
+                }
+                animator.startAnimation()
+            } else {
+                UIViewPropertyAnimator.runningPropertyAnimator(
+                    withDuration: transitionDuration(using: transitionContext),
+                    delay: 0,
+                    options: [.curveEaseIn, .beginFromCurrentState]
+                ) {
+                    fromView.alpha = 0
+                    fromView.transform = CGAffineTransform(scaleX: 0.965, y: 0.965)
+                } completion: { _ in
+                    fromView.transform = .identity
+                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
+                }
             }
-            animator.addCompletion { _ in
-                fromView.transform = .identity
-                transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
-            }
-            animator.startAnimation()
         }
     }
 
@@ -934,7 +1022,9 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
         view.layoutIfNeeded()
         scrollToActive(animated: false)
-        updateCardDepth()
+        if !isPresentingTransition {
+            updateCardDepth()
+        }
     }
 
     private func addCard(for index: Int) {
@@ -1012,7 +1102,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         ])
 
         card.transform = .identity
-        card.alpha = 1
+        card.alpha = 0
         card.layer.shouldRasterize = false
     }
 
