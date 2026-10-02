@@ -55,6 +55,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         bottomChrome.addArrangedSubview(bottomBar)
 
         content.translatesAutoresizingMaskIntoConstraints = false
+        content.backgroundColor = .clear
         chromeBar.backgroundColor = .systemBackground
         chromeBar.translatesAutoresizingMaskIntoConstraints = false
         chromeBar.addSubview(addressBar)
@@ -92,7 +93,31 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         b.widthAnchor.constraint(equalToConstant: 40).isActive = true
         b.heightAnchor.constraint(equalToConstant: 36).isActive = true
         b.addTarget(self, action: action, for: .touchUpInside)
+        b.addTarget(self, action: #selector(toolbarButtonDown(_:)), for: [.touchDown, .touchDragEnter])
+        b.addTarget(self, action: #selector(toolbarButtonUp(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
         return b
+    }
+
+    @objc private func toolbarButtonDown(_ sender: UIButton) {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        UIView.animate(withDuration: 0.12, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
+            sender.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
+            sender.alpha = 0.82
+        }
+    }
+
+    @objc private func toolbarButtonUp(_ sender: UIButton) {
+        guard !UIAccessibility.isReduceMotionEnabled else {
+            sender.transform = .identity
+            sender.alpha = 1
+            return
+        }
+        UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 0.78,
+                       initialSpringVelocity: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+            sender.transform = .identity
+            sender.alpha = 1
+        }
+    }
     }
 
     private func addTab(privateMode: Bool, url: URL?) {
@@ -120,12 +145,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     private func showActiveWebView() {
         showingHome = false
         addressBar.isHidden = false
-        homeView?.removeFromSuperview()
-        homeView = nil
 
-        content.subviews.forEach { $0.removeFromSuperview() }
         let w = webView
         w.translatesAutoresizingMaskIntoConstraints = false
+        let oldViews = content.subviews
         content.addSubview(w)
         NSLayoutConstraint.activate([
             w.topAnchor.constraint(equalTo: content.topAnchor),
@@ -133,6 +156,28 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             w.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             w.bottomAnchor.constraint(equalTo: content.bottomAnchor)
         ])
+
+        w.alpha = UIAccessibility.isReduceMotionEnabled ? 1 : 0
+        UIView.performWithoutAnimation {
+            content.layoutIfNeeded()
+        }
+
+        if UIAccessibility.isReduceMotionEnabled {
+            oldViews.forEach { $0.removeFromSuperview() }
+            homeView = nil
+        } else {
+            UIViewPropertyAnimator.runningPropertyAnimator(
+                withDuration: 0.22,
+                delay: 0,
+                options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]
+            ) {
+                w.alpha = 1
+                oldViews.forEach { $0.alpha = 0 }
+            } completion: { [weak self] _ in
+                oldViews.forEach { $0.removeFromSuperview() }
+                self?.homeView = nil
+            }
+        }
         updateButtons()
     }
 
@@ -140,12 +185,12 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         webView.stopLoading()
         showingHome = true
         addressBar.isHidden = true
-        content.subviews.forEach { $0.removeFromSuperview() }
 
         let home = MapleHomeView { [weak self] query in
             self?.navigate(query)
         }
         home.translatesAutoresizingMaskIntoConstraints = false
+        home.alpha = UIAccessibility.isReduceMotionEnabled ? 1 : 0
         content.addSubview(home)
         NSLayoutConstraint.activate([
             home.topAnchor.constraint(equalTo: content.topAnchor),
@@ -153,6 +198,26 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             home.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             home.bottomAnchor.constraint(equalTo: content.bottomAnchor)
         ])
+        UIView.performWithoutAnimation {
+            content.layoutIfNeeded()
+        }
+
+        let oldViews = content.subviews.filter { $0 !== home }
+        if UIAccessibility.isReduceMotionEnabled {
+            oldViews.forEach { $0.removeFromSuperview() }
+        } else {
+            UIViewPropertyAnimator.runningPropertyAnimator(
+                withDuration: 0.24,
+                delay: 0,
+                options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]
+            ) {
+                home.alpha = 1
+                oldViews.forEach { $0.alpha = 0 }
+            } completion: { [weak self] _ in
+                oldViews.forEach { $0.removeFromSuperview() }
+                self?.homeView = home
+            }
+        }
         homeView = home
     }
 
@@ -451,10 +516,10 @@ private final class MapleHomeView: UIView {
         searchField.autocapitalizationType = .none
         searchField.autocorrectionType = .no
         searchField.clearButtonMode = .whileEditing
-        let leftPadding = UIView(frame: CGRect(x: 0, y: 0, width: 14, height: 1))
+        let leftPadding = UIView(frame: CGRect(x: 0, y: 0, width: 18, height: 1))
         searchField.leftView = leftPadding
         searchField.leftViewMode = .always
-        let rightPadding = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 1))
+        let rightPadding = UIView(frame: CGRect(x: 0, y: 0, width: 14, height: 1))
         searchField.rightView = rightPadding
         searchField.rightViewMode = .always
         searchField.addTarget(self, action: #selector(submitSearch), for: .editingDidEndOnExit)
@@ -491,9 +556,9 @@ private final class MapleHomeView: UIView {
     private func animateLogo() {
         guard !UIAccessibility.isReduceMotionEnabled else { return }
         let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
-        animation.values = [0, -5, 0, 4, 0]
+        animation.values = [0, -3, 0, 2.5, 0]
         animation.keyTimes = [0, 0.25, 0.5, 0.75, 1]
-        animation.duration = 5.2
+        animation.duration = 6.4
         animation.repeatCount = .infinity
         animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         logoView.layer.add(animation, forKey: "maple.logo.float")
@@ -552,7 +617,7 @@ private final class MapleWaveView: UIView {
         let bases: [CGFloat] = [0.755, 0.835, 0.905]
         let amplitudes: [CGFloat] = [0.0065, 0.0055, 0.0048]
         let durations: [CFTimeInterval] = [24, 28, 32]
-        let parallax: [CGFloat] = [0.004, 0.005, 0.006]
+        let parallax: [CGFloat] = [0.001, 0.0012, 0.0014]
 
         for index in 0..<3 {
             let shape = CAShapeLayer()
@@ -599,7 +664,7 @@ private final class MapleWaveView: UIView {
 
         // One very broad sinusoidal arc per layer; low amplitude prevents visible "flapping".
         let cycles: CGFloat = 0.72
-        let points = 16
+        let points = 24
         path.move(to: CGPoint(x: 0, y: y + sin(phase) * a))
 
         for i in 0..<points {
@@ -626,7 +691,7 @@ private final class MapleWaveView: UIView {
 
         for wave in waves {
             let current = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
-            let target = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase + .pi * 0.55).cgPath
+            let target = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase + .pi * 0.32).cgPath
 
             let morph = CABasicAnimation(keyPath: "path")
             morph.fromValue = current
@@ -640,7 +705,7 @@ private final class MapleWaveView: UIView {
             let drift = CABasicAnimation(keyPath: "transform.translation.x")
             drift.fromValue = -bounds.width * wave.parallax
             drift.toValue = bounds.width * wave.parallax
-            drift.duration = wave.duration * 1.25
+            drift.duration = wave.duration * 1.8
             drift.autoreverses = true
             drift.repeatCount = .infinity
             drift.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -648,9 +713,9 @@ private final class MapleWaveView: UIView {
         }
 
         let lightPulse = CABasicAnimation(keyPath: "opacity")
-        lightPulse.fromValue = 0.55
-        lightPulse.toValue = 1.0
-        lightPulse.duration = 7.0
+        lightPulse.fromValue = 0.68
+        lightPulse.toValue = 0.92
+        lightPulse.duration = 9.0
         lightPulse.autoreverses = true
         lightPulse.repeatCount = .infinity
         lightPulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
@@ -673,6 +738,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
     private var cardViews: [UIView] = []
     private var previewViews: [UIImageView] = []
     private var isPresentingTransition = true
+    private var isTransitioning = false
 
     init(tabs: [WKWebView], activeIndex: Int, sourceSnapshot: UIImage?, sourceFrame: CGRect,
          onSelect: @escaping (Int) -> Void,
@@ -718,7 +784,9 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             container.addSubview(toView)
             toView.frame = transitionContext.finalFrame(for: transitionContext.viewController(forKey: .to)!)
             toView.alpha = 0
+            toView.transform = CGAffineTransform(scaleX: 0.965, y: 0.965)
             toView.layoutIfNeeded()
+            isTransitioning = true
             updateCardDepth()
 
             let activePreview = previewViews.indices.contains(activeIndex) ? previewViews[activeIndex] : nil
@@ -756,11 +824,15 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                 }
                 animator.startAnimation()
             } else {
-                UIView.animate(withDuration: transitionDuration(using: transitionContext),
-                               delay: 0,
-                               options: [.curveEaseInOut, .beginFromCurrentState]) {
+                UIViewPropertyAnimator.runningPropertyAnimator(
+                    withDuration: transitionDuration(using: transitionContext),
+                    delay: 0,
+                    options: [.curveEaseOut, .beginFromCurrentState]
+                ) {
                     toView.alpha = 1
+                    toView.transform = .identity
                 } completion: { _ in
+                    self.isTransitioning = false
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
             }
@@ -987,9 +1059,11 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
     }
 
     private func updateCardDepth() {
-        guard !cardViews.isEmpty else { return }
+        guard !cardViews.isEmpty, !isTransitioning else { return }
         let centerX = scrollView.bounds.midX
 
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         for card in cardViews {
             let rect = card.convert(card.bounds, to: scrollView)
             let distance = abs(rect.midX - centerX) / max(card.bounds.width, 1)
@@ -998,6 +1072,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             card.alpha = 1
             card.layer.zPosition = CGFloat(1000 - distance * 100)
         }
+        CATransaction.commit()
 
         if let topCard = cardViews.min(by: {
             abs($0.convert($0.bounds, to: self.scrollView).midX - centerX) <
@@ -1032,8 +1107,15 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         let card = cardViews[index]
         let tab = tabs[index]
 
-        let animator = UIViewPropertyAnimator(duration: 0.38, dampingRatio: 0.9) {
-            card.transform = CGAffineTransform(scaleX: 0.78, y: 0.78).translatedBy(x: 0, y: 18)
+        let animator = UIViewPropertyAnimator(
+            duration: 0.28,
+            timingParameters: UICubicTimingParameters(
+                controlPoint1: CGPoint(x: 0.22, y: 1.0),
+                controlPoint2: CGPoint(x: 0.36, y: 1.0)
+            )
+        )
+        animator.addAnimations {
+            card.transform = CGAffineTransform(scaleX: 0.88, y: 0.88).translatedBy(x: 0, y: 10)
             card.alpha = 0
         }
         animator.addCompletion { [weak self, weak card] _ in
