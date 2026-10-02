@@ -215,10 +215,13 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     @objc private func newTab() { addTab(privateMode: false, url: nil) }
 
     @objc private func showTabs() {
-        let sourceFrame = webView.convert(webView.bounds, to: view.window)
-        webView.takeSnapshot(with: WKSnapshotConfiguration()) { [weak self] snapshot, _ in
+        let sourceView: UIView = showingHome ? (homeView ?? content) : webView
+        let sourceFrame = sourceView.convert(sourceView.bounds, to: view.window)
+
+        let presentTabs: (UIImage?) -> Void = { [weak self] snapshot in
             guard let self else { return }
             let controller = MapleTabsViewController(
+
                 tabs: self.tabs,
                 activeIndex: self.activeIndex,
                 sourceSnapshot: snapshot,
@@ -247,6 +250,18 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             controller.modalPresentationStyle = .custom
             controller.transitioningDelegate = controller
             self.present(controller, animated: true)
+        }
+
+        if showingHome, let home = homeView {
+            let renderer = UIGraphicsImageRenderer(bounds: home.bounds)
+            let snapshot = renderer.image { _ in
+                home.drawHierarchy(in: home.bounds, afterScreenUpdates: true)
+            }
+            presentTabs(snapshot)
+        } else {
+            webView.takeSnapshot(with: WKSnapshotConfiguration()) { snapshot, _ in
+                presentTabs(snapshot)
+            }
         }
     }
 
