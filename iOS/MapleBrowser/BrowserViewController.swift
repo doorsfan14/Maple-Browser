@@ -57,6 +57,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         content.translatesAutoresizingMaskIntoConstraints = false
         chromeBar.backgroundColor = .systemBackground
         chromeBar.translatesAutoresizingMaskIntoConstraints = false
+        chromeBar.addSubview(addressBar)
+        addressBar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(chromeBar)
         view.addSubview(content)
         view.addSubview(bottomChrome)
@@ -66,6 +68,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             chromeBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             chromeBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             chromeBar.bottomAnchor.constraint(equalTo: content.topAnchor),
+            addressBar.leadingAnchor.constraint(equalTo: chromeBar.leadingAnchor, constant: 12),
+            addressBar.trailingAnchor.constraint(equalTo: chromeBar.trailingAnchor, constant: -12),
+            addressBar.bottomAnchor.constraint(equalTo: chromeBar.bottomAnchor, constant: -8),
+            addressBar.heightAnchor.constraint(equalToConstant: 42),
             content.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             content.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             content.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -113,6 +119,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     private func showActiveWebView() {
         showingHome = false
+        addressBar.isHidden = false
         homeView?.removeFromSuperview()
         homeView = nil
 
@@ -132,6 +139,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     private func showHome() {
         webView.stopLoading()
         showingHome = true
+        addressBar.isHidden = true
         content.subviews.forEach { $0.removeFromSuperview() }
 
         let home = MapleHomeView { [weak self] query in
@@ -216,7 +224,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     @objc private func showTabs() {
         let sourceView: UIView = showingHome ? (homeView ?? content) : webView
-        let sourceFrame = sourceView.convert(sourceView.bounds, to: view.window)
+        let sourceFrame = sourceView.convert(sourceView.bounds, to: view.window ?? view)
 
         let presentTabs: (UIImage?) -> Void = { [weak self] snapshot in
             guard let self else { return }
@@ -430,7 +438,7 @@ private final class MapleHomeView: UIView {
         searchField.font = .systemFont(ofSize: 17, weight: .regular)
         searchField.textColor = .label
         searchField.tintColor = .label
-        searchField.backgroundColor = .secondarySystemBackground
+        searchField.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.72)
         searchField.layer.cornerRadius = 22
         searchField.layer.cornerCurve = .continuous
         searchField.layer.borderWidth = 1
@@ -443,6 +451,12 @@ private final class MapleHomeView: UIView {
         searchField.autocapitalizationType = .none
         searchField.autocorrectionType = .no
         searchField.clearButtonMode = .whileEditing
+        let leftPadding = UIView(frame: CGRect(x: 0, y: 0, width: 14, height: 1))
+        searchField.leftView = leftPadding
+        searchField.leftViewMode = .always
+        let rightPadding = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 1))
+        searchField.rightView = rightPadding
+        searchField.rightViewMode = .always
         searchField.addTarget(self, action: #selector(submitSearch), for: .editingDidEndOnExit)
         searchField.translatesAutoresizingMaskIntoConstraints = false
         addSubview(searchField)
@@ -500,38 +514,52 @@ private final class MapleWaveView: UIView {
     private var waves: [Wave] = []
     private var didAnimate = false
     private var lastSize: CGSize = .zero
+    private let ambientLight = CAGradientLayer()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         isUserInteractionEnabled = false
         backgroundColor = .systemBackground
+        layer.masksToBounds = true
         createWaves()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func createWaves() {
-        // Three restrained ribbons. The palette stays Maple: orange/yellow and purple,
-        // with crimson used only as a small warm accent inside the existing layers.
-        let palettes: [(UIColor, UIColor)] = [
-            (UIColor(red: 1.00, green: 0.64, blue: 0.08, alpha: 1),
-             UIColor(red: 0.88, green: 0.08, blue: 0.07, alpha: 1)), // orange -> crimson
-            (UIColor(red: 1.00, green: 0.82, blue: 0.16, alpha: 1),
-             UIColor(red: 0.96, green: 0.40, blue: 0.03, alpha: 1)), // yellow -> orange
-            (UIColor(red: 0.66, green: 0.32, blue: 0.95, alpha: 1),
-             UIColor(red: 0.36, green: 0.10, blue: 0.72, alpha: 1))  // purple
+        ambientLight.type = .radial
+        ambientLight.colors = [
+            UIColor(red: 1.0, green: 0.35, blue: 0.08, alpha: 0.16).cgColor,
+            UIColor(red: 0.55, green: 0.12, blue: 0.85, alpha: 0.08).cgColor,
+            UIColor.clear.cgColor
+        ]
+        ambientLight.locations = [0, 0.45, 1]
+        ambientLight.startPoint = CGPoint(x: 0.35, y: 0.35)
+        ambientLight.endPoint = CGPoint(x: 1.0, y: 0.85)
+        layer.addSublayer(ambientLight)
+
+        // Exactly three broad ribbons. Each carries a restrained crimson detail.
+
+        let crimson = UIColor(red: 0.88, green: 0.08, blue: 0.07, alpha: 1)
+        let palettes: [[UIColor]] = [
+            [UIColor(red: 1.00, green: 0.64, blue: 0.08, alpha: 1), crimson,
+             UIColor(red: 1.00, green: 0.42, blue: 0.04, alpha: 1)],
+            [UIColor(red: 1.00, green: 0.82, blue: 0.16, alpha: 1), crimson,
+             UIColor(red: 0.96, green: 0.40, blue: 0.03, alpha: 1)],
+            [UIColor(red: 0.66, green: 0.32, blue: 0.95, alpha: 1), crimson,
+             UIColor(red: 0.36, green: 0.10, blue: 0.72, alpha: 1)]
         ]
         let bases: [CGFloat] = [0.755, 0.835, 0.905]
-        let amplitudes: [CGFloat] = [0.010, 0.008, 0.007]
-        let durations: [CFTimeInterval] = [18, 22, 26]
-        let parallax: [CGFloat] = [0.010, 0.016, 0.022]
+        let amplitudes: [CGFloat] = [0.0065, 0.0055, 0.0048]
+        let durations: [CFTimeInterval] = [24, 28, 32]
+        let parallax: [CGFloat] = [0.004, 0.005, 0.006]
 
         for index in 0..<3 {
             let shape = CAShapeLayer()
             let gradient = CAGradientLayer()
             gradient.startPoint = CGPoint(x: 0, y: 0.5)
             gradient.endPoint = CGPoint(x: 1, y: 0.5)
-            gradient.colors = [palettes[index].0.cgColor, palettes[index].1.cgColor]
+            gradient.colors = palettes[index].map { $0.cgColor }
             gradient.mask = shape
             layer.addSublayer(gradient)
 
@@ -548,6 +576,7 @@ private final class MapleWaveView: UIView {
 
         if lastSize != bounds.size {
             lastSize = bounds.size
+            ambientLight.frame = bounds.insetBy(dx: -bounds.width * 0.25, dy: -bounds.height * 0.25)
             for wave in waves {
                 wave.gradient.frame = bounds
                 wave.shape.frame = bounds
@@ -569,8 +598,8 @@ private final class MapleWaveView: UIView {
         let path = UIBezierPath()
 
         // One very broad sinusoidal arc per layer; low amplitude prevents visible "flapping".
-        let cycles: CGFloat = 1.15
-        let points = 10
+        let cycles: CGFloat = 0.72
+        let points = 16
         path.move(to: CGPoint(x: 0, y: y + sin(phase) * a))
 
         for i in 0..<points {
@@ -597,7 +626,7 @@ private final class MapleWaveView: UIView {
 
         for wave in waves {
             let current = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
-            let target = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase + .pi * 0.85).cgPath
+            let target = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase + .pi * 0.55).cgPath
 
             let morph = CABasicAnimation(keyPath: "path")
             morph.fromValue = current
@@ -616,6 +645,16 @@ private final class MapleWaveView: UIView {
             drift.repeatCount = .infinity
             drift.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             wave.gradient.add(drift, forKey: "maple.wave.parallax")
+        }
+
+        let lightPulse = CABasicAnimation(keyPath: "opacity")
+        lightPulse.fromValue = 0.55
+        lightPulse.toValue = 1.0
+        lightPulse.duration = 7.0
+        lightPulse.autoreverses = true
+        lightPulse.repeatCount = .infinity
+        lightPulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        ambientLight.add(lightPulse, forKey: "maple.ambient.pulse")
         }
     }
 }
@@ -678,10 +717,10 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
             container.addSubview(toView)
             toView.frame = transitionContext.finalFrame(for: transitionContext.viewController(forKey: .to)!)
+            toView.alpha = 0
             toView.layoutIfNeeded()
             updateCardDepth()
 
-            let activeCard = cardViews.indices.contains(activeIndex) ? cardViews[activeIndex] : nil
             let activePreview = previewViews.indices.contains(activeIndex) ? previewViews[activeIndex] : nil
 
             if let snapshot = sourceSnapshot, let activePreview {
@@ -707,6 +746,8 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                     overlay.frame = targetRect
                     overlay.layer.cornerRadius = 18
                     activePreview.alpha = 1
+                    toView.alpha = 1
+                    toView.transform = CGAffineTransform(scaleX: 1.0, y: 1.0)
                 }
                 animator.addCompletion { _ in
                     overlay.removeFromSuperview()
@@ -715,7 +756,13 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                 }
                 animator.startAnimation()
             } else {
-                transitionContext.completeTransition(true)
+                UIView.animate(withDuration: transitionDuration(using: transitionContext),
+                               delay: 0,
+                               options: [.curveEaseInOut, .beginFromCurrentState]) {
+                    toView.alpha = 1
+                } completion: { _ in
+                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
+                }
             }
         } else {
             guard let fromView = transitionContext.view(forKey: .from) else {
