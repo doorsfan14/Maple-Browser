@@ -710,7 +710,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             let scale = max(0.70, 1.0 - min(distance, 3.0) * 0.09)
             card.transform = CGAffineTransform(scaleX: scale, y: scale)
             card.alpha = 1
-            card.layer.zPosition = Float(1000 - distance * 100)
+            card.layer.zPosition = CGFloat(1000 - distance * 100)
         }
 
         if let topCard = cardViews.min(by: {
