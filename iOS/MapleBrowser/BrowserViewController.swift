@@ -93,31 +93,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         b.widthAnchor.constraint(equalToConstant: 40).isActive = true
         b.heightAnchor.constraint(equalToConstant: 36).isActive = true
         b.addTarget(self, action: action, for: .touchUpInside)
-        b.addTarget(self, action: #selector(toolbarButtonDown(_:)), for: [.touchDown, .touchDragEnter])
-        b.addTarget(self, action: #selector(toolbarButtonUp(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
         return b
-    }
-
-    @objc private func toolbarButtonDown(_ sender: UIButton) {
-        guard !UIAccessibility.isReduceMotionEnabled else { return }
-        UIView.animate(withDuration: 0.12, delay: 0, options: [.beginFromCurrentState, .curveEaseOut]) {
-            sender.transform = CGAffineTransform(scaleX: 0.92, y: 0.92)
-            sender.alpha = 0.82
-        }
-    }
-
-    @objc private func toolbarButtonUp(_ sender: UIButton) {
-        guard !UIAccessibility.isReduceMotionEnabled else {
-            sender.transform = .identity
-            sender.alpha = 1
-            return
-        }
-        UIView.animate(withDuration: 0.24, delay: 0, usingSpringWithDamping: 0.78,
-                       initialSpringVelocity: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
-            sender.transform = .identity
-            sender.alpha = 1
-        }
-    }
     }
 
     private func addTab(privateMode: Bool, url: URL?) {
