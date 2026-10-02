@@ -942,3 +942,230 @@ private final class MapleDownloadManager: NSObject, URLSessionDownloadDelegate {
         task.taskDescription = id
         task.resume()
     }
+
+    func retry(_ item: Item) {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        items[index].status = "Downloading"
+        save()
+        if let data = item.resumeData {
+            let task = session.downloadTask(withResumeData: data)
+            task.taskDescription = item.id
+            items[index].resumeData = nil
+            task.resume()
+        } else if let url = URL(string: item.url) {
+            let task = session.downloadTask(with: url)
+            task.taskDescription = item.id
+            task.resume()
+        }
+    }
+
+    func remove(_ item: Item) {
+        items.removeAll { $0.id == item.id }
+        save()
+    }
+
+    func downloadItems() -> [Item] { items }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard let id = downloadTask.taskDescription,
+              let index = items.firstIndex(where: { $0.id == id }) else { return }
+        if totalBytesExpectedToWrite > 0 {
+            items[index].progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        }
+        items[index].status = "Downloading"
+        save()
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        guard let id = downloadTask.taskDescription,
+              let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let fm = FileManager.default
+        let dir = fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Downloads", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let safeName = items[index].name.replacingOccurrences(of: "/", with: "_")
+        let destination = dir.appendingPathComponent(safeName)
+        try? fm.removeItem(at: destination)
+        do {
+            try fm.moveItem(at: location, to: destination)
+            items[index].progress = 1
+            items[index].status = "Completed"
+            items[index].filePath = destination.path
+            items[index].resumeData = nil
+        } catch {
+            items[index].status = "Failed"
+        }
+        save()
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let downloadTask = task as? URLSessionDownloadTask,
+              let id = downloadTask.taskDescription,
+              let index = items.firstIndex(where: { $0.id == id }),
+              let error else { return }
+        let nsError = error as NSError
+        if let resumeData = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
+            items[index].resumeData = resumeData
+            items[index].status = "Paused / failed — Resume available"
+        } else {
+            items[index].status = "Failed — Tap Retry"
+        }
+        save()
+    }
+
+    private func save() {
+        let encoded = items.map { item -> [String: Any] in
+            [
+                "id": item.id, "name": item.name, "url": item.url,
+                "progress": item.progress, "status": item.status,
+                "filePath": item.filePath as Any,
+                "resumeData": item.resumeData as Any
+            ]
+        }
+        UserDefaults.standard.set(encoded, forKey: "maple.downloads")
+    }
+
+    private func load() {
+        guard let raw = UserDefaults.standard.array(forKey: "maple.downloads") as? [[String: Any]] else { return }
+        items = raw.compactMap { dict in
+            guard let id = dict["id"] as? String,
+                  let name = dict["name"] as? String,
+                  let url = dict["url"] as? String else { return nil }
+            return Item(id: id, name: name, url: url,
+                        progress: dict["progress"] as? Double ?? 0,
+                        status: dict["status"] as? String ?? "Failed — Tap Retry",
+                        filePath: dict["filePath"] as? String,
+                        resumeData: dict["resumeData"] as? Data)
+        }
+    }
+}
+
+private final class DownloadsViewController: UITableViewController {
+    private let manager: MapleDownloadManager
+    private var items: [MapleDownloadManager.Item] = []
+
+    init(manager: MapleDownloadManager) {
+        self.manager = manager
+        super.init(style: .insetGrouped)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Downloads"
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "download")
+        refresh()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        refresh()
+    }
+
+    private func refresh() {
+        items = manager.downloadItems()
+        tableView.reloadData()
+    }
+
+    @objc private func close() { dismiss(animated: true) }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        items.count
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "download", for: indexPath)
+        let item = items[indexPath.row]
+        cell.textLabel?.text = item.name
+        let percent = Int(item.progress * 100)
+        cell.detailTextLabel?.text = item.status == "Downloading" ? "Downloading · \(percent)%" : item.status
+        cell.accessoryType = item.status == "Completed" ? .checkmark : .disclosureIndicator
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let item = items[indexPath.row]
+        tableView.deselectRow(at: indexPath, animated: true)
+        if item.status.contains("Failed") || item.status.contains("Paused") {
+            manager.retry(item)
+            refresh()
+        } else if item.status == "Completed", let path = item.filePath {
+            let url = URL(fileURLWithPath: path)
+            let controller = UIDocumentInteractionController(url: url)
+            controller.presentPreview(animated: true)
+        }
+    }
+
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        if editingStyle == .delete {
+            manager.remove(items[indexPath.row])
+            refresh()
+        }
+    }
+}
+
+private final class SettingsViewController: UITableViewController {
+    private let clearHistory: () -> Void
+    private let clearBookmarks: () -> Void
+    private let clearWebData: () -> Void
+    private let showDownloads: () -> Void
+
+    init(clearHistory: @escaping () -> Void, clearBookmarks: @escaping () -> Void,
+         clearWebData: @escaping () -> Void, showDownloads: @escaping () -> Void) {
+        self.clearHistory = clearHistory
+        self.clearBookmarks = clearBookmarks
+        self.clearWebData = clearWebData
+        self.showDownloads = showDownloads
+        super.init(style: .insetGrouped)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Settings"
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
+    }
+
+    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        section == 0 ? 1 : section == 1 ? 1 : 3
+    }
+
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        ["Downloads", "Browsing Data", "About"][section]
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
+        if indexPath.section == 0 {
+            cell.textLabel?.text = "Downloads"
+            cell.accessoryType = .disclosureIndicator
+        } else if indexPath.section == 1 {
+            let labels = ["Clear History", "Clear Bookmarks", "Clear Web Data"]
+            cell.textLabel?.text = labels[indexPath.row]
+            if indexPath.row == 2 { cell.textLabel?.textColor = .systemRed }
+        } else {
+            let labels = ["Maple Browser", "Version", "Search Engine"]
+            let values = ["Team Celeste", "0.1.0", "Google"]
+            cell.textLabel?.text = labels[indexPath.row]
+            cell.detailTextLabel?.text = values[indexPath.row]
+        }
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        if indexPath.section == 0 { showDownloads() }
+        else if indexPath.section == 1 {
+            if indexPath.row == 0 { clearHistory() }
+            else if indexPath.row == 1 { clearBookmarks() }
+            else { clearWebData() }
+        }
+    }
+
+    @objc private func close() { dismiss(animated: true) }
+}
