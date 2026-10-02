@@ -146,7 +146,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         .wave{position:absolute;left:-15%;width:130%;height:38%;border-radius:50% 50% 0 0/28% 28% 0 0;transform:rotate(-4deg)}
         .wave.one{bottom:24%;background:#ff7139}
         .wave.two{bottom:12%;background:#ff4b2f}
-        .wave.three{bottom:1%;background:#a8e63d}
+        .wave.three{bottom:1%;background:#ff9f1c}
         .wave.four{bottom:-11%;background:#00a8ff}
         .wave.five{bottom:-23%;background:#7b3ff2}
         .search{position:relative;width:min(88%,560px);margin:0 0 34px}
@@ -258,7 +258,14 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
                     }
                 },
                 onClose: { [weak self] tab in
-                    self?.closeTab(tab: tab)
+                    guard let self else { return }
+                    if self.tabs.count == 1 {
+                        self.dismiss(animated: true) {
+                            self.closeLastTabAndShowHome()
+                        }
+                    } else {
+                        self.closeTab(tab: tab)
+                    }
                 }
             )
             controller.modalPresentationStyle = .custom
@@ -274,7 +281,26 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
 
     private func closeCurrentTab() {
-        closeTab(at: activeIndex)
+        if tabs.count == 1 {
+            closeLastTabAndShowHome()
+        } else {
+            closeTab(at: activeIndex)
+        }
+    }
+
+    private func closeLastTabAndShowHome() {
+        guard !tabs.isEmpty else {
+            addTab(privateMode: false, url: nil)
+            return
+        }
+
+        tabs[0].stopLoading()
+        tabs[0].navigationDelegate = nil
+        tabs[0].uiDelegate = nil
+        tabs.removeAll()
+        privateTabs.removeAll()
+        activeIndex = 0
+        addTab(privateMode: false, url: nil)
     }
 
     private func closeTab(at index: Int) {
