@@ -454,9 +454,9 @@ private final class MapleHomeView: UIView {
             wavesView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
             logoView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            logoView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -70),
-            logoView.widthAnchor.constraint(equalToConstant: 190),
-            logoView.heightAnchor.constraint(equalToConstant: 190),
+            logoView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            logoView.widthAnchor.constraint(equalToConstant: 250),
+            logoView.heightAnchor.constraint(equalToConstant: 250),
 
             searchField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
             searchField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
@@ -605,7 +605,7 @@ private final class MapleWaveView: UIView {
             morph.duration = wave.duration
             morph.autoreverses = true
             morph.repeatCount = .infinity
-            morph.timingFunction = CAMediaTimingFunction(name: .easeInEaseInEaseOut)
+            morph.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             wave.shape.add(morph, forKey: "maple.wave.morph")
 
             let drift = CABasicAnimation(keyPath: "transform.translation.x")
