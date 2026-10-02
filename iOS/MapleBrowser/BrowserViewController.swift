@@ -74,20 +74,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         bottomChrome.alignment = .center
         bottomChrome.distribution = .equalSpacing
         bottomChrome.translatesAutoresizingMaskIntoConstraints = false
-        bottomChrome.addSubview(bottomChromeBlur)
+        bottomChrome.backgroundColor = .clear
         bottomChrome.addArrangedSubview(bottomBar)
-        bottomChrome.layer.cornerRadius = 20
-        bottomChrome.layer.cornerCurve = .continuous
-        bottomChrome.clipsToBounds = true
-
-        bottomChromeBlur.translatesAutoresizingMaskIntoConstraints = false
-        bottomChromeBlur.isUserInteractionEnabled = false
-        NSLayoutConstraint.activate([
-            bottomChromeBlur.topAnchor.constraint(equalTo: bottomChrome.topAnchor),
-            bottomChromeBlur.leadingAnchor.constraint(equalTo: bottomChrome.leadingAnchor),
-            bottomChromeBlur.trailingAnchor.constraint(equalTo: bottomChrome.trailingAnchor),
-            bottomChromeBlur.bottomAnchor.constraint(equalTo: bottomChrome.bottomAnchor)
-        ])
+        bottomChrome.layer.cornerRadius = 0
+        bottomChrome.clipsToBounds = false
 
         content.translatesAutoresizingMaskIntoConstraints = false
         content.backgroundColor = .clear
@@ -115,8 +105,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let b = UIButton(type: .system)
         b.setImage(UIImage(systemName: symbol), for: .normal)
         b.tintColor = .label
-        b.backgroundColor = .secondarySystemBackground
-        b.layer.cornerRadius = 9
+        b.backgroundColor = .clear
+        b.layer.cornerRadius = 0
         b.widthAnchor.constraint(equalToConstant: 40).isActive = true
         b.heightAnchor.constraint(equalToConstant: 36).isActive = true
         b.addTarget(self, action: action, for: .touchUpInside)
@@ -160,7 +150,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             w.bottomAnchor.constraint(equalTo: content.bottomAnchor)
         ])
 
-        w.alpha = UIAccessibility.isReduceMotionEnabled ? 1 : 0
+        w.alpha = 1
         UIView.performWithoutAnimation {
             content.layoutIfNeeded()
         }
@@ -170,11 +160,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             homeView = nil
         } else {
             UIViewPropertyAnimator.runningPropertyAnimator(
-                withDuration: 0.22,
+                withDuration: 0.16,
                 delay: 0,
                 options: [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]
             ) {
-                w.alpha = 1
                 oldViews.forEach { $0.alpha = 0 }
             } completion: { [weak self] _ in
                 oldViews.forEach { $0.removeFromSuperview() }
@@ -292,7 +281,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     @objc private func showTabs() {
         let sourceView: UIView = showingHome ? (homeView ?? content) : webView
-        let sourceFrame = sourceView.convert(sourceView.bounds, to: view.window ?? view)
+        let sourceFrame = sourceView.convert(sourceView.bounds, to: view)
 
         let presentTabs: (UIImage?) -> Void = { [weak self] snapshot in
             guard let self else { return }
@@ -330,9 +319,12 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             self.present(controller, animated: true)
         }
 
-        if showingHome {
-            // Home is not a browser tab; never put the Home UI into the tab switcher.
-            presentTabs(nil)
+        if showingHome, let home = homeView {
+            let renderer = UIGraphicsImageRenderer(bounds: home.bounds)
+            let snapshot = renderer.image { _ in
+                home.drawHierarchy(in: home.bounds, afterScreenUpdates: true)
+            }
+            presentTabs(snapshot)
         } else {
             // Snapshot the existing WKWebView only for the visual morph. This does not reload it.
             webView.takeSnapshot(with: WKSnapshotConfiguration()) { snapshot, _ in
@@ -819,7 +811,8 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
             container.addSubview(toView)
             toView.frame = transitionContext.finalFrame(for: transitionContext.viewController(forKey: .to)!)
-            toView.backgroundColor = .clear
+            // Keep the switcher opaque so the live WKWebView can never show through behind cards.
+            toView.backgroundColor = .systemBackground
             toView.alpha = 1
             toView.transform = .identity
 
@@ -859,6 +852,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                 animator.addCompletion { _ in
                     activeCard.transform = .identity
                     self.isTransitioning = false
+                    self.refreshSnapshots()
                     self.updateCardDepth()
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
@@ -908,6 +902,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                     selectedCard.transform = .identity
                     self.cardViews.forEach { $0.alpha = 1 }
                     self.isTransitioning = false
+                    self.refreshSnapshots()
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
                 animator.startAnimation()
@@ -1448,82 +1443,3 @@ private final class DownloadsViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
         if item.status.contains("Failed") || item.status.contains("Paused") {
             manager.retry(item)
-            refresh()
-        } else if item.status == "Completed", let path = item.filePath {
-            let url = URL(fileURLWithPath: path)
-            let controller = UIDocumentInteractionController(url: url)
-            controller.presentPreview(animated: true)
-        }
-    }
-
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-        if editingStyle == .delete {
-            manager.remove(items[indexPath.row])
-            refresh()
-        }
-    }
-}
-
-private final class SettingsViewController: UITableViewController {
-    private let clearHistory: () -> Void
-    private let clearBookmarks: () -> Void
-    private let clearWebData: () -> Void
-    private let showDownloads: () -> Void
-
-    init(clearHistory: @escaping () -> Void, clearBookmarks: @escaping () -> Void,
-         clearWebData: @escaping () -> Void, showDownloads: @escaping () -> Void) {
-        self.clearHistory = clearHistory
-        self.clearBookmarks = clearBookmarks
-        self.clearWebData = clearWebData
-        self.showDownloads = showDownloads
-        super.init(style: .insetGrouped)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        title = "Settings"
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
-    }
-
-    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
-
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? 1 : section == 1 ? 1 : 3
-    }
-
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Downloads", "Browsing Data", "About"][section]
-    }
-
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
-        if indexPath.section == 0 {
-            cell.textLabel?.text = "Downloads"
-            cell.accessoryType = .disclosureIndicator
-        } else if indexPath.section == 1 {
-            let labels = ["Clear History", "Clear Bookmarks", "Clear Web Data"]
-            cell.textLabel?.text = labels[indexPath.row]
-            if indexPath.row == 2 { cell.textLabel?.textColor = .systemRed }
-        } else {
-            let labels = ["Maple Browser", "Version", "Search Engine"]
-            let values = ["Team Celeste", "0.1.0", "Google"]
-            cell.textLabel?.text = labels[indexPath.row]
-            cell.detailTextLabel?.text = values[indexPath.row]
-        }
-        return cell
-    }
-
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
-        if indexPath.section == 0 { showDownloads() }
-        else if indexPath.section == 1 {
-            if indexPath.row == 0 { clearHistory() }
-            else if indexPath.row == 1 { clearBookmarks() }
-            else { clearWebData() }
-        }
-    }
-
-    @objc private func close() { dismiss(animated: true) }
-}
