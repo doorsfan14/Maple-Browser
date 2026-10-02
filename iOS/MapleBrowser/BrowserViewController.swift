@@ -2,7 +2,7 @@ import UIKit
 import WebKit
 import Foundation
 
-final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
     private let addressBar = UITextField()
     private let content = UIView()
     private let bottomBar = UIStackView()
@@ -15,6 +15,8 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     private var bookmarks: [[String: String]] = []
     private var history: [[String: String]] = []
     private let homeURL = URL(string: "maple://home")!
+    private var homeView: MapleHomeView?
+    private var showingHome = false
 
     private var webView: WKWebView { tabs[activeIndex] }
 
@@ -50,7 +52,6 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         bottomChrome.axis = .vertical
         bottomChrome.spacing = 7
         bottomChrome.translatesAutoresizingMaskIntoConstraints = false
-        bottomChrome.addArrangedSubview(addressBar)
         bottomChrome.addArrangedSubview(bottomBar)
 
         content.translatesAutoresizingMaskIntoConstraints = false
@@ -72,7 +73,6 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             bottomChrome.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             bottomChrome.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             bottomChrome.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -5),
-            addressBar.heightAnchor.constraint(equalToConstant: 44),
             bottomBar.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
@@ -91,9 +91,6 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     private func addTab(privateMode: Bool, url: URL?) {
         let config = WKWebViewConfiguration()
-        let contentController = WKUserContentController()
-        contentController.add(self, name: "mapleSearch")
-        config.userContentController = contentController
         config.allowsInlineMediaPlayback = true
         config.applicationNameForUserAgent = "Maple/0.1.0"
         if privateMode { config.websiteDataStore = .nonPersistent() }
@@ -115,6 +112,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
 
     private func showActiveWebView() {
+        showingHome = false
+        homeView?.removeFromSuperview()
+        homeView = nil
+
         content.subviews.forEach { $0.removeFromSuperview() }
         let w = webView
         w.translatesAutoresizingMaskIntoConstraints = false
@@ -125,98 +126,26 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             w.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             w.bottomAnchor.constraint(equalTo: content.bottomAnchor)
         ])
-        addressBar.text = w.url?.absoluteString == homeURL.absoluteString ? "" : w.url?.absoluteString
         updateButtons()
     }
 
     private func showHome() {
         webView.stopLoading()
-        webView.loadHTMLString(homeHTML(), baseURL: nil)
-        addressBar.text = ""
-    }
+        showingHome = true
+        content.subviews.forEach { $0.removeFromSuperview() }
 
-    private func homeHTML() -> String {
-        let logoData = UIImage(named: "MapleLogo")?.pngData()?.base64EncodedString() ?? ""
-        let logoSource = logoData.isEmpty ? "" : "data:image/png;base64,\\(logoData)"
-
-        return """
-        <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-        <style>
-        *{box-sizing:border-box}
-        html,body{margin:0;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
-        :root{color-scheme:light dark}
-        body{display:flex;align-items:flex-end;justify-content:center;overflow:hidden;background:#f7f7f8;color:#111}
-        .scene{position:absolute;inset:0;overflow:hidden}
-        .waves{position:absolute;inset:-12% -8% -8%;filter:saturate(1.03)}
-        svg{width:116%;height:116%;display:block}
-        .wave{transform-box:fill-box;transform-origin:center;animation:drift 13s ease-in-out infinite alternate}
-        .wave.w2{animation-duration:16s;animation-delay:-3s}
-        .wave.w3{animation-duration:19s;animation-delay:-7s}
-        .wave.w4{animation-duration:15s;animation-delay:-5s}
-        .wave.w5{animation-duration:21s;animation-delay:-10s}
-        @keyframes drift{
-          0%{transform:translateX(-2%) translateY(1%) scale(1.02)}
-          50%{transform:translateX(1.5%) translateY(-1.2%) scale(1.045)}
-          100%{transform:translateX(3%) translateY(.8%) scale(1.02)}
+        let home = MapleHomeView { [weak self] query in
+            self?.navigate(query)
         }
-        .logo{position:absolute;top:12%;left:50%;width:min(31vw,150px);height:auto;transform:translateX(-50%);filter:drop-shadow(0 12px 22px rgba(0,0,0,.16));animation:logoFloat 5s ease-in-out infinite}
-        @keyframes logoFloat{
-          0%,100%{transform:translateX(-50%) translateY(0) rotate(-1deg) scale(1)}
-          50%{transform:translateX(-50%) translateY(-7px) rotate(1deg) scale(1.035)}
-        }
-        .search{position:relative;width:min(88%,560px);margin:0 0 34px;z-index:5;animation:searchIn .75s cubic-bezier(.2,.8,.2,1) both}
-        @keyframes searchIn{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
-        form{display:flex;background:rgba(255,255,255,.92);border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.14);backdrop-filter:blur(14px)}
-        input{width:100%;background:transparent;border:0;outline:0;color:#111;font-size:17px;padding:14px 20px}
-        input::placeholder{color:#777}
-        @media (prefers-color-scheme:dark){
-          body{background:#111214;color:#f5f5f7}
-          form{background:rgba(36,37,41,.88);box-shadow:0 10px 30px rgba(0,0,0,.35)}
-          input{color:#f5f5f7}input::placeholder{color:#a5a5aa}
-        }
-        @media (prefers-reduced-motion:reduce){
-          .wave,.logo,.search{animation:none}
-        }
-        </style></head><body>
-        <div class="scene">
-          <div class="waves">
-            <svg viewBox="0 0 1200 900" preserveAspectRatio="none" aria-hidden="true">
-              <defs>
-                <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7139"/><stop offset="1" stop-color="#ff4b2f"/></linearGradient>
-                <linearGradient id="g2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff4b2f"/><stop offset="1" stop-color="#ff9f1c"/></linearGradient>
-                <linearGradient id="g3" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff9f1c"/><stop offset="1" stop-color="#00a8ff"/></linearGradient>
-                <linearGradient id="g4" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#00a8ff"/><stop offset="1" stop-color="#7b3ff2"/></linearGradient>
-                <linearGradient id="g5" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b3ff2"/><stop offset="1" stop-color="#ff7139"/></linearGradient>
-              </defs>
-              <path class="wave w1" fill="url(#g1)" d="M0 260 C160 180 300 360 470 265 S790 175 960 270 S1110 340 1200 250 L1200 900 L0 900 Z">
-                <animate attributeName="d" dur="11s" repeatCount="indefinite" values="M0 260 C160 180 300 360 470 265 S790 175 960 270 S1110 340 1200 250 L1200 900 L0 900 Z;M0 285 C150 365 315 175 500 285 S815 365 980 255 S1120 190 1200 285 L1200 900 L0 900 Z;M0 260 C160 180 300 360 470 265 S790 175 960 270 S1110 340 1200 250 L1200 900 L0 900 Z"/>
-              </path>
-              <path class="wave w2" fill="url(#g2)" d="M0 390 C180 300 330 475 520 385 S840 295 1010 405 S1130 445 1200 370 L1200 900 L0 900 Z">
-                <animate attributeName="d" dur="14s" repeatCount="indefinite" values="M0 390 C180 300 330 475 520 385 S840 295 1010 405 S1130 445 1200 370 L1200 900 L0 900 Z;M0 420 C190 500 340 315 540 420 S850 500 1020 390 S1135 325 1200 420 L1200 900 L0 900 Z;M0 390 C180 300 330 475 520 385 S840 295 1010 405 S1130 445 1200 370 L1200 900 L0 900 Z"/>
-              </path>
-              <path class="wave w3" fill="url(#g3)" d="M0 535 C160 455 320 610 500 520 S820 445 990 545 S1130 585 1200 510 L1200 900 L0 900 Z">
-                <animate attributeName="d" dur="17s" repeatCount="indefinite" values="M0 535 C160 455 320 610 500 520 S820 445 990 545 S1130 585 1200 510 L1200 900 L0 900 Z;M0 560 C170 645 325 465 515 560 S830 650 1000 525 S1135 455 1200 560 L1200 900 L0 900 Z;M0 535 C160 455 320 610 500 520 S820 445 990 545 S1130 585 1200 510 L1200 900 L0 900 Z"/>
-              </path>
-              <path class="wave w4" fill="url(#g4)" d="M0 665 C170 585 325 740 505 650 S825 570 1000 675 S1135 710 1200 645 L1200 900 L0 900 Z">
-                <animate attributeName="d" dur="20s" repeatCount="indefinite" values="M0 665 C170 585 325 740 505 650 S825 570 1000 675 S1135 710 1200 645 L1200 900 L0 900 Z;M0 690 C180 765 340 600 520 690 S840 770 1015 655 S1140 595 1200 690 L1200 900 L0 900 Z;M0 665 C170 585 325 740 505 650 S825 570 1000 675 S1135 710 1200 645 L1200 900 L0 900 Z"/>
-              </path>
-              <path class="wave w5" fill="url(#g5)" d="M0 790 C160 715 330 850 510 775 S825 700 1000 800 S1140 840 1200 775 L1200 900 L0 900 Z">
-                <animate attributeName="d" dur="23s" repeatCount="indefinite" values="M0 790 C160 715 330 850 510 775 S825 700 1000 800 S1140 840 1200 775 L1200 900 L0 900 Z;M0 810 C180 875 345 730 525 810 S845 875 1015 785 S1140 720 1200 810 L1200 900 L0 900 Z;M0 790 C160 715 330 850 510 775 S825 700 1000 800 S1140 840 1200 775 L1200 900 L0 900 Z"/>
-              </path>
-            </svg>
-          </div>
-          <img class="logo" src="\\(logoSource)" alt="Maple Browser">
-        </div>
-        <main class="search"><form><input name="q" autocomplete="off" autofocus placeholder="Search or enter a website"></form></main>
-        <script>document.querySelector('form').onsubmit=function(e){e.preventDefault();window.webkit.messageHandlers.mapleSearch.postMessage(this.q.value)}</script>
-        </body></html>
-        """
-    }
-
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "mapleSearch", let q = message.body as? String {
-            navigate(q)
-        }
+        home.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(home)
+        NSLayoutConstraint.activate([
+            home.topAnchor.constraint(equalTo: content.topAnchor),
+            home.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            home.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            home.bottomAnchor.constraint(equalTo: content.bottomAnchor)
+        ])
+        homeView = home
     }
 
     private func navigate(_ input: String) {
@@ -232,6 +161,9 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             url = URL(string: "https://www.google.com/search?q=" + encoded)!
         }
         addressBar.resignFirstResponder()
+        if showingHome {
+            showActiveWebView()
+        }
         webView.load(URLRequest(url: url))
     }
 
@@ -451,6 +383,224 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
 }
 
+
+
+private final class MapleHomeView: UIView {
+    private let searchField = UITextField()
+    private let logoView = UIImageView()
+    private let wavesView = MapleWaveView()
+    private let searchHandler: (String) -> Void
+
+    init(searchHandler: @escaping (String) -> Void) {
+        self.searchHandler = searchHandler
+        super.init(frame: .zero)
+        backgroundColor = .systemBackground
+        clipsToBounds = true
+        build()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func build() {
+        wavesView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(wavesView)
+
+        logoView.image = UIImage(named: "MapleLogo")
+        logoView.contentMode = .scaleAspectFit
+        logoView.clipsToBounds = false
+        logoView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(logoView)
+
+        searchField.placeholder = "Search or enter a website"
+        searchField.font = .systemFont(ofSize: 17, weight: .regular)
+        searchField.textColor = .label
+        searchField.tintColor = .label
+        searchField.backgroundColor = .secondarySystemBackground
+        searchField.layer.cornerRadius = 22
+        searchField.layer.cornerCurve = .continuous
+        searchField.layer.borderWidth = 1
+        searchField.layer.borderColor = UIColor.separator.withAlphaComponent(0.35).cgColor
+        searchField.layer.shadowColor = UIColor.black.cgColor
+        searchField.layer.shadowOpacity = 0.12
+        searchField.layer.shadowRadius = 18
+        searchField.layer.shadowOffset = CGSize(width: 0, height: 8)
+        searchField.returnKeyType = .go
+        searchField.autocapitalizationType = .none
+        searchField.autocorrectionType = .no
+        searchField.clearButtonMode = .whileEditing
+        searchField.addTarget(self, action: #selector(submitSearch), for: .editingDidEndOnExit)
+        searchField.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(searchField)
+
+        NSLayoutConstraint.activate([
+            wavesView.topAnchor.constraint(equalTo: topAnchor),
+            wavesView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            wavesView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            wavesView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+            logoView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            logoView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 54),
+            logoView.widthAnchor.constraint(lessThanOrEqualToConstant: 132),
+            logoView.heightAnchor.constraint(equalToConstant: 132),
+
+            searchField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
+            searchField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
+            searchField.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -28),
+            searchField.heightAnchor.constraint(equalToConstant: 44)
+        ])
+
+        animateLogo()
+    }
+
+    @objc private func submitSearch() {
+        let value = searchField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !value.isEmpty else { return }
+        searchField.resignFirstResponder()
+        searchHandler(value)
+    }
+
+    private func animateLogo() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
+        animation.values = [0, -5, 0, 4, 0]
+        animation.keyTimes = [0, 0.25, 0.5, 0.75, 1]
+        animation.duration = 5.2
+        animation.repeatCount = .infinity
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        logoView.layer.add(animation, forKey: "maple.logo.float")
+    }
+}
+
+private final class MapleWaveView: UIView {
+    private struct Wave {
+        let shape: CAShapeLayer
+        let gradient: CAGradientLayer
+        let startColor: UIColor
+        let endColor: UIColor
+        let base: CGFloat
+        let amplitude: CGFloat
+        let phase: CGFloat
+        let duration: CFTimeInterval
+    }
+
+    private var waves: [Wave] = []
+    private var didAnimate = false
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .systemBackground
+        createWaves()
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func createWaves() {
+        // High-contrast pairings: each wave has a clear color identity instead of one long orange→blue wash.
+        let palettes: [(UIColor, UIColor)] = [
+            (UIColor(red: 1.00, green: 0.31, blue: 0.16, alpha: 1), UIColor(red: 0.84, green: 0.03, blue: 0.24, alpha: 1)),
+            (UIColor(red: 1.00, green: 0.70, blue: 0.05, alpha: 1), UIColor(red: 1.00, green: 0.24, blue: 0.02, alpha: 1)),
+            (UIColor(red: 0.00, green: 0.74, blue: 1.00, alpha: 1), UIColor(red: 0.00, green: 0.34, blue: 0.92, alpha: 1)),
+            (UIColor(red: 0.47, green: 0.20, blue: 0.95, alpha: 1), UIColor(red: 0.05, green: 0.56, blue: 1.00, alpha: 1)),
+            (UIColor(red: 0.92, green: 0.13, blue: 0.55, alpha: 1), UIColor(red: 0.57, green: 0.08, blue: 0.78, alpha: 1))
+        ]
+
+        let bases: [CGFloat] = [0.70, 0.79, 0.86, 0.92, 0.97]
+        let amplitudes: [CGFloat] = [0.035, 0.032, 0.028, 0.024, 0.020]
+        let durations: [CFTimeInterval] = [9.5, 11.5, 13.5, 15.5, 17.5]
+
+        for index in 0..<5 {
+            let shape = CAShapeLayer()
+            shape.fillColor = UIColor.white.cgColor
+            shape.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+
+            let gradient = CAGradientLayer()
+            gradient.startPoint = CGPoint(x: 0, y: 0.5)
+            gradient.endPoint = CGPoint(x: 1, y: 0.5)
+            gradient.colors = [palettes[index].0.cgColor, palettes[index].1.cgColor]
+            gradient.mask = shape
+            layer.addSublayer(gradient)
+
+            waves.append(Wave(
+                shape: shape,
+                gradient: gradient,
+                startColor: palettes[index].0,
+                endColor: palettes[index].1,
+                base: bases[index],
+                amplitude: amplitudes[index],
+                phase: CGFloat(index) * 1.2,
+                duration: durations[index]
+            ))
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        for wave in waves {
+            wave.gradient.frame = bounds.insetBy(dx: -bounds.width * 0.12, dy: -bounds.height * 0.03)
+            wave.shape.frame = wave.gradient.bounds
+            wave.shape.path = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
+        }
+
+        if !didAnimate && bounds.width > 0 && bounds.height > 0 {
+            didAnimate = true
+            startAnimations()
+        }
+    }
+
+    private func makePath(base: CGFloat, amplitude: CGFloat, phase: CGFloat) -> UIBezierPath {
+        let w = bounds.width * 1.25
+        let h = bounds.height
+        let y = h * base
+        let a = h * amplitude
+        let p = UIBezierPath()
+        p.move(to: CGPoint(x: -w * 0.08, y: y))
+
+        let segments = 6
+        for i in 0...segments {
+            let x0 = -w * 0.08 + (w * CGFloat(i) / CGFloat(segments))
+            let x1 = -w * 0.08 + (w * CGFloat(i + 1) / CGFloat(segments))
+            let span = x1 - x0
+            let nextY = y + sin(phase + CGFloat(i + 1) * 1.35) * a
+            let currentY = y + sin(phase + CGFloat(i) * 1.35) * a
+            let c1 = CGPoint(x: x0 + span * 0.33, y: currentY)
+            let c2 = CGPoint(x: x1 - span * 0.33, y: nextY)
+            p.addCurve(to: CGPoint(x: x1, y: nextY), controlPoint1: c1, controlPoint2: c2)
+        }
+
+        p.addLine(to: CGPoint(x: w, y: h))
+        p.addLine(to: CGPoint(x: -w * 0.08, y: h))
+        p.close()
+        return p
+    }
+
+    private func startAnimations() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+
+        for wave in waves {
+            let current = wave.shape.path ?? makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
+            let target = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase + .pi).cgPath
+
+            let morph = CABasicAnimation(keyPath: "path")
+            morph.fromValue = current
+            morph.toValue = target
+            morph.duration = wave.duration
+            morph.autoreverses = true
+            morph.repeatCount = .infinity
+            morph.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            wave.shape.add(morph, forKey: "maple.wave.morph")
+
+            let drift = CABasicAnimation(keyPath: "transform.translation.x")
+            drift.fromValue = -bounds.width * 0.025
+            drift.toValue = bounds.width * 0.025
+            drift.duration = wave.duration * 1.35
+            drift.autoreverses = true
+            drift.repeatCount = .infinity
+            drift.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            wave.gradient.add(drift, forKey: "maple.wave.drift")
+        }
+    }
+}
 
 private final class MapleTabsViewController: UIViewController, UIViewControllerTransitioningDelegate, UIViewControllerAnimatedTransitioning, UIScrollViewDelegate {
     private let tabs: [WKWebView]
