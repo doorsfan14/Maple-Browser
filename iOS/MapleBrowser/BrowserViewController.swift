@@ -696,7 +696,6 @@ private final class MapleWaveView: UIView {
         lightPulse.repeatCount = .infinity
         lightPulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         ambientLight.add(lightPulse, forKey: "maple.ambient.pulse")
-        }
     }
 }
 
