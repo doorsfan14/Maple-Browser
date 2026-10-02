@@ -496,9 +496,10 @@ private final class MapleWaveView: UIView {
     private func createWaves() {
         // Three broad, shallow layers: flowing ribbons rather than tall peaks.
         let palettes: [(UIColor, UIColor)] = [
-            (UIColor(red: 1.00, green: 0.31, blue: 0.16, alpha: 1), UIColor(red: 0.84, green: 0.03, blue: 0.24, alpha: 1)),
-            (UIColor(red: 1.00, green: 0.70, blue: 0.05, alpha: 1), UIColor(red: 1.00, green: 0.24, blue: 0.02, alpha: 1)),
-            (UIColor(red: 0.47, green: 0.20, blue: 0.95, alpha: 1), UIColor(red: 0.00, green: 0.47, blue: 0.98, alpha: 1))
+            // Match the Maple logo exactly: orange/yellow and purple only.
+            (UIColor(red: 1.00, green: 0.62, blue: 0.08, alpha: 1), UIColor(red: 1.00, green: 0.28, blue: 0.02, alpha: 1)),
+            (UIColor(red: 1.00, green: 0.82, blue: 0.12, alpha: 1), UIColor(red: 0.95, green: 0.42, blue: 0.02, alpha: 1)),
+            (UIColor(red: 0.63, green: 0.28, blue: 0.95, alpha: 1), UIColor(red: 0.34, green: 0.08, blue: 0.72, alpha: 1))
         ]
         let bases: [CGFloat] = [0.72, 0.82, 0.91]
         let amplitudes: [CGFloat] = [0.022, 0.018, 0.015]
