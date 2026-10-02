@@ -320,15 +320,11 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             self.present(controller, animated: true)
         }
 
-        if showingHome, let home = homeView {
-            // Render the native Home view through its layer so Core Animation waves/glows
-            // are preserved; drawHierarchy can flatten animated layers to white.
-            home.layoutIfNeeded()
-            let renderer = UIGraphicsImageRenderer(bounds: home.bounds)
-            let snapshot = renderer.image { context in
-                home.layer.render(in: context.cgContext)
-            }
-            presentTabs(self.tabs.map { _ in nil }, snapshot)
+        if showingHome {
+            // Home remains live underneath the custom transition. Do not snapshot it:
+            // the native wave layers and animated gradients should never be flattened
+            // into a temporary image during tab presentation.
+            presentTabs(self.tabs.map { _ in nil }, nil)
         } else {
             // Capture every live tab while the browser is still visible.
             // Never snapshot after the switcher covers the web views; WebKit can return a white frame.
@@ -827,70 +823,61 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
             container.addSubview(toView)
             toView.frame = transitionContext.finalFrame(for: transitionContext.viewController(forKey: .to)!)
-            // Keep the switcher opaque so the live WKWebView can never show through behind cards.
             toView.backgroundColor = .systemBackground
-            toView.alpha = 1
             toView.transform = .identity
 
             isTransitioning = true
-            // Keep the cards visible. The active card itself performs the morph.
-            cardViews.forEach { $0.alpha = 1 }
+            cardViews.forEach {
+                $0.transform = .identity
+                $0.alpha = 1
+            }
 
-            let activeCard = cardViews.indices.contains(activeIndex) ? cardViews[activeIndex] : nil
+            guard let activeCard = cardViews.indices.contains(activeIndex) ? cardViews[activeIndex] : nil else {
+                toView.alpha = 1
+                isTransitioning = false
+                transitionContext.completeTransition(true)
+                return
+            }
 
-            if let activeCard {
-                let targetRect = activeCard.convert(activeCard.bounds, to: container)
-                let scaleX = sourceFrame.width / max(targetRect.width, 1)
-                let scaleY = sourceFrame.height / max(targetRect.height, 1)
-                let initialScale = min(scaleX, scaleY)
-                let translationX = sourceFrame.midX - targetRect.midX
-                let translationY = sourceFrame.midY - targetRect.midY
+            // The source screen stays underneath the custom presentation. We deliberately
+            // do not snapshot Home or WKWebView here: snapshots can become stale/white and
+            // make the transition visually fight the real UI.
+            let targetRect = activeCard.convert(activeCard.bounds, to: container)
+            let scaleX = sourceFrame.width / max(targetRect.width, 1)
+            let scaleY = sourceFrame.height / max(targetRect.height, 1)
+            let initialScale = min(scaleX, scaleY)
+            let translationX = sourceFrame.midX - targetRect.midX
+            let translationY = sourceFrame.midY - targetRect.midY
 
-                // Home is a transition source, not a tab preview. Keep the real website
-                // snapshot in the card and morph a temporary Home image over it.
-                var morphView: UIImageView?
-                if let snapshot = sourceSnapshot {
-                    let imageView = UIImageView(image: snapshot)
-                    imageView.frame = sourceFrame
-                    imageView.contentMode = .scaleToFill
-                    imageView.clipsToBounds = true
-                    imageView.layer.cornerRadius = 20
-                    imageView.layer.cornerCurve = .continuous
-                    imageView.layer.masksToBounds = true
-                    imageView.layer.zPosition = 4000
-                    container.addSubview(imageView)
-                    morphView = imageView
-                }
+            activeCard.transform = CGAffineTransform(translationX: translationX, y: translationY)
+                .scaledBy(x: initialScale, y: initialScale)
+            activeCard.layer.zPosition = 3000
+            toView.alpha = 0
 
-                activeCard.transform = CGAffineTransform(translationX: translationX, y: translationY)
-                    .scaledBy(x: initialScale, y: initialScale)
-                activeCard.layer.zPosition = 3000
-
-                let animator = UIViewPropertyAnimator(
-                    duration: transitionDuration(using: transitionContext),
-                    timingParameters: UICubicTimingParameters(
-                        controlPoint1: CGPoint(x: 0.18, y: 0.88),
-                        controlPoint2: CGPoint(x: 0.30, y: 1.0)
-                    )
+            let animator = UIViewPropertyAnimator(
+                duration: transitionDuration(using: transitionContext),
+                timingParameters: UICubicTimingParameters(
+                    controlPoint1: CGPoint(x: 0.16, y: 0.84),
+                    controlPoint2: CGPoint(x: 0.24, y: 1.0)
                 )
-                animator.addAnimations {
-                    activeCard.transform = .identity
-                    if let morphView {
-                        morphView.frame = targetRect
+            )
+            animator.addAnimations {
+                toView.alpha = 1
+                activeCard.transform = .identity
+                self.cardViews.enumerated().forEach { index, card in
+                    if index != self.activeIndex {
+                        card.alpha = 1
                     }
                 }
-                animator.addCompletion { _ in
-                    activeCard.transform = .identity
-                    morphView?.removeFromSuperview()
-                    self.isTransitioning = false
-                    self.updateCardDepth()
-                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
-                }
-                animator.startAnimation()
-            } else {
-                isTransitioning = false
+            }
+            animator.addCompletion { _ in
+                activeCard.transform = .identity
+                activeCard.layer.zPosition = 3000
+                self.isTransitioning = false
+                self.updateCardDepth()
                 transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
             }
+            animator.startAnimation()
         } else {
             guard let fromView = transitionContext.view(forKey: .from) else {
                 transitionContext.completeTransition(false)
@@ -898,46 +885,45 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             }
 
             let selectedIndex = activeIndex
-            let selectedCard = cardViews.indices.contains(selectedIndex) ? cardViews[selectedIndex] : nil
+            guard let selectedCard = cardViews.indices.contains(selectedIndex) ? cardViews[selectedIndex] : nil else {
+                transitionContext.completeTransition(true)
+                return
+            }
 
-            if let selectedCard {
-                let selectedRect = selectedCard.convert(selectedCard.bounds, to: container)
-                let scaleX = sourceFrame.width / max(selectedRect.width, 1)
-                let scaleY = sourceFrame.height / max(selectedRect.height, 1)
-                let targetScale = min(scaleX, scaleY)
-                let translationX = sourceFrame.midX - selectedRect.midX
-                let translationY = sourceFrame.midY - selectedRect.midY
+            let selectedRect = selectedCard.convert(selectedCard.bounds, to: container)
+            let scaleX = sourceFrame.width / max(selectedRect.width, 1)
+            let scaleY = sourceFrame.height / max(selectedRect.height, 1)
+            let targetScale = min(scaleX, scaleY)
+            let translationX = sourceFrame.midX - selectedRect.midX
+            let translationY = sourceFrame.midY - selectedRect.midY
 
-                fromView.alpha = 1
-                selectedCard.layer.zPosition = 3000
-                isTransitioning = true
+            isTransitioning = true
+            selectedCard.layer.zPosition = 3000
 
-                let animator = UIViewPropertyAnimator(
-                    duration: transitionDuration(using: transitionContext),
-                    timingParameters: UICubicTimingParameters(
-                        controlPoint1: CGPoint(x: 0.70, y: 0.0),
-                        controlPoint2: CGPoint(x: 0.82, y: 0.12)
-                    )
+            let animator = UIViewPropertyAnimator(
+                duration: transitionDuration(using: transitionContext),
+                timingParameters: UICubicTimingParameters(
+                    controlPoint1: CGPoint(x: 0.76, y: 0.0),
+                    controlPoint2: CGPoint(x: 0.88, y: 0.16)
                 )
-                animator.addAnimations {
-                    selectedCard.transform = CGAffineTransform(translationX: translationX, y: translationY)
-                        .scaledBy(x: targetScale, y: targetScale)
-                    self.cardViews.enumerated().forEach { index, card in
-                        if index != selectedIndex {
-                            card.alpha = 0
-                        }
+            )
+            animator.addAnimations {
+                selectedCard.transform = CGAffineTransform(translationX: translationX, y: translationY)
+                    .scaledBy(x: targetScale, y: targetScale)
+                self.cardViews.enumerated().forEach { index, card in
+                    if index != selectedIndex {
+                        card.alpha = 0
                     }
                 }
-                animator.addCompletion { _ in
-                    selectedCard.transform = .identity
-                    self.cardViews.forEach { $0.alpha = 1 }
-                    self.isTransitioning = false
-                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
-                }
-                animator.startAnimation()
-            } else {
+                fromView.alpha = 1
+            }
+            animator.addCompletion { _ in
+                selectedCard.transform = .identity
+                self.cardViews.forEach { $0.alpha = 1 }
+                self.isTransitioning = false
                 transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
             }
+            animator.startAnimation()
         }
     }
 
