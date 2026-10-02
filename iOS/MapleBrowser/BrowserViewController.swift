@@ -136,32 +136,76 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
     }
 
     private func homeHTML() -> String {
+        let logoData = UIImage(named: "MapleLogo")?.pngData()?.base64EncodedString() ?? ""
+        let logoSource = logoData.isEmpty ? "" : "data:image/png;base64,\\(logoData)"
+
         return """
         <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
         <style>
-        *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+        *{box-sizing:border-box}
+        html,body{margin:0;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
         :root{color-scheme:light dark}
         body{display:flex;align-items:flex-end;justify-content:center;overflow:hidden;background:#f7f7f8;color:#111}
-        .waves{position:absolute;inset:0;overflow:hidden}
-        .wave{position:absolute;left:-15%;width:130%;height:38%;border-radius:50% 50% 0 0/28% 28% 0 0;transform:rotate(-4deg)}
-        .wave.one{bottom:24%;background:#ff7139}
-        .wave.two{bottom:12%;background:#ff4b2f}
-        .wave.three{bottom:1%;background:#ff9f1c}
-        .wave.four{bottom:-11%;background:#00a8ff}
-        .wave.five{bottom:-23%;background:#7b3ff2}
-        .search{position:relative;width:min(88%,560px);margin:0 0 34px}
-        form{display:flex;background:rgba(255,255,255,.92);border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.14)}
+        .scene{position:absolute;inset:0;overflow:hidden}
+        .waves{position:absolute;inset:-12% -8% -8%;filter:saturate(1.03)}
+        svg{width:116%;height:116%;display:block}
+        .wave{transform-box:fill-box;transform-origin:center;animation:drift 13s ease-in-out infinite alternate}
+        .wave.w2{animation-duration:16s;animation-delay:-3s}
+        .wave.w3{animation-duration:19s;animation-delay:-7s}
+        .wave.w4{animation-duration:15s;animation-delay:-5s}
+        .wave.w5{animation-duration:21s;animation-delay:-10s}
+        @keyframes drift{
+          0%{transform:translateX(-2%) translateY(1%) scale(1.02)}
+          50%{transform:translateX(1.5%) translateY(-1.2%) scale(1.045)}
+          100%{transform:translateX(3%) translateY(.8%) scale(1.02)}
+        }
+        .logo{position:absolute;top:12%;left:50%;width:min(31vw,150px);height:auto;transform:translateX(-50%);filter:drop-shadow(0 12px 22px rgba(0,0,0,.16));animation:logoFloat 5s ease-in-out infinite}
+        @keyframes logoFloat{
+          0%,100%{transform:translateX(-50%) translateY(0) rotate(-1deg) scale(1)}
+          50%{transform:translateX(-50%) translateY(-7px) rotate(1deg) scale(1.035)}
+        }
+        .search{position:relative;width:min(88%,560px);margin:0 0 34px;z-index:5;animation:searchIn .75s cubic-bezier(.2,.8,.2,1) both}
+        @keyframes searchIn{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+        form{display:flex;background:rgba(255,255,255,.92);border-radius:999px;box-shadow:0 10px 30px rgba(0,0,0,.14);backdrop-filter:blur(14px)}
         input{width:100%;background:transparent;border:0;outline:0;color:#111;font-size:17px;padding:14px 20px}
         input::placeholder{color:#777}
         @media (prefers-color-scheme:dark){
           body{background:#111214;color:#f5f5f7}
-          form{background:rgba(36,37,41,.96);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+          form{background:rgba(36,37,41,.88);box-shadow:0 10px 30px rgba(0,0,0,.35)}
           input{color:#f5f5f7}input::placeholder{color:#a5a5aa}
         }
+        @media (prefers-reduced-motion:reduce){
+          .wave,.logo,.search{animation:none}
+        }
         </style></head><body>
-        <div class="waves" aria-hidden="true">
-          <div class="wave one"></div><div class="wave two"></div><div class="wave three"></div>
-          <div class="wave four"></div><div class="wave five"></div>
+        <div class="scene">
+          <div class="waves">
+            <svg viewBox="0 0 1200 900" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7139"/><stop offset="1" stop-color="#ff4b2f"/></linearGradient>
+                <linearGradient id="g2" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff4b2f"/><stop offset="1" stop-color="#ff9f1c"/></linearGradient>
+                <linearGradient id="g3" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff9f1c"/><stop offset="1" stop-color="#00a8ff"/></linearGradient>
+                <linearGradient id="g4" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#00a8ff"/><stop offset="1" stop-color="#7b3ff2"/></linearGradient>
+                <linearGradient id="g5" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b3ff2"/><stop offset="1" stop-color="#ff7139"/></linearGradient>
+              </defs>
+              <path class="wave w1" fill="url(#g1)" d="M0 260 C160 180 300 360 470 265 S790 175 960 270 S1110 340 1200 250 L1200 900 L0 900 Z">
+                <animate attributeName="d" dur="11s" repeatCount="indefinite" values="M0 260 C160 180 300 360 470 265 S790 175 960 270 S1110 340 1200 250 L1200 900 L0 900 Z;M0 285 C150 365 315 175 500 285 S815 365 980 255 S1120 190 1200 285 L1200 900 L0 900 Z;M0 260 C160 180 300 360 470 265 S790 175 960 270 S1110 340 1200 250 L1200 900 L0 900 Z"/>
+              </path>
+              <path class="wave w2" fill="url(#g2)" d="M0 390 C180 300 330 475 520 385 S840 295 1010 405 S1130 445 1200 370 L1200 900 L0 900 Z">
+                <animate attributeName="d" dur="14s" repeatCount="indefinite" values="M0 390 C180 300 330 475 520 385 S840 295 1010 405 S1130 445 1200 370 L1200 900 L0 900 Z;M0 420 C190 500 340 315 540 420 S850 500 1020 390 S1135 325 1200 420 L1200 900 L0 900 Z;M0 390 C180 300 330 475 520 385 S840 295 1010 405 S1130 445 1200 370 L1200 900 L0 900 Z"/>
+              </path>
+              <path class="wave w3" fill="url(#g3)" d="M0 535 C160 455 320 610 500 520 S820 445 990 545 S1130 585 1200 510 L1200 900 L0 900 Z">
+                <animate attributeName="d" dur="17s" repeatCount="indefinite" values="M0 535 C160 455 320 610 500 520 S820 445 990 545 S1130 585 1200 510 L1200 900 L0 900 Z;M0 560 C170 645 325 465 515 560 S830 650 1000 525 S1135 455 1200 560 L1200 900 L0 900 Z;M0 535 C160 455 320 610 500 520 S820 445 990 545 S1130 585 1200 510 L1200 900 L0 900 Z"/>
+              </path>
+              <path class="wave w4" fill="url(#g4)" d="M0 665 C170 585 325 740 505 650 S825 570 1000 675 S1135 710 1200 645 L1200 900 L0 900 Z">
+                <animate attributeName="d" dur="20s" repeatCount="indefinite" values="M0 665 C170 585 325 740 505 650 S825 570 1000 675 S1135 710 1200 645 L1200 900 L0 900 Z;M0 690 C180 765 340 600 520 690 S840 770 1015 655 S1140 595 1200 690 L1200 900 L0 900 Z;M0 665 C170 585 325 740 505 650 S825 570 1000 675 S1135 710 1200 645 L1200 900 L0 900 Z"/>
+              </path>
+              <path class="wave w5" fill="url(#g5)" d="M0 790 C160 715 330 850 510 775 S825 700 1000 800 S1140 840 1200 775 L1200 900 L0 900 Z">
+                <animate attributeName="d" dur="23s" repeatCount="indefinite" values="M0 790 C160 715 330 850 510 775 S825 700 1000 800 S1140 840 1200 775 L1200 900 L0 900 Z;M0 810 C180 875 345 730 525 810 S845 875 1015 785 S1140 720 1200 810 L1200 900 L0 900 Z;M0 790 C160 715 330 850 510 775 S825 700 1000 800 S1140 840 1200 775 L1200 900 L0 900 Z"/>
+              </path>
+            </svg>
+          </div>
+          <img class="logo" src="\\(logoSource)" alt="Maple Browser">
         </div>
         <main class="search"><form><input name="q" autocomplete="off" autofocus placeholder="Search or enter a website"></form></main>
         <script>document.querySelector('form').onsubmit=function(e){e.preventDefault();window.webkit.messageHandlers.mapleSearch.postMessage(this.q.value)}</script>
@@ -898,230 +942,3 @@ private final class MapleDownloadManager: NSObject, URLSessionDownloadDelegate {
         task.taskDescription = id
         task.resume()
     }
-
-    func retry(_ item: Item) {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        items[index].status = "Downloading"
-        save()
-        if let data = item.resumeData {
-            let task = session.downloadTask(withResumeData: data)
-            task.taskDescription = item.id
-            items[index].resumeData = nil
-            task.resume()
-        } else if let url = URL(string: item.url) {
-            let task = session.downloadTask(with: url)
-            task.taskDescription = item.id
-            task.resume()
-        }
-    }
-
-    func remove(_ item: Item) {
-        items.removeAll { $0.id == item.id }
-        save()
-    }
-
-    func downloadItems() -> [Item] { items }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
-                    didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard let id = downloadTask.taskDescription,
-              let index = items.firstIndex(where: { $0.id == id }) else { return }
-        if totalBytesExpectedToWrite > 0 {
-            items[index].progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-        }
-        items[index].status = "Downloading"
-        save()
-    }
-
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let id = downloadTask.taskDescription,
-              let index = items.firstIndex(where: { $0.id == id }) else { return }
-        let fm = FileManager.default
-        let dir = fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Downloads", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        let safeName = items[index].name.replacingOccurrences(of: "/", with: "_")
-        let destination = dir.appendingPathComponent(safeName)
-        try? fm.removeItem(at: destination)
-        do {
-            try fm.moveItem(at: location, to: destination)
-            items[index].progress = 1
-            items[index].status = "Completed"
-            items[index].filePath = destination.path
-            items[index].resumeData = nil
-        } catch {
-            items[index].status = "Failed"
-        }
-        save()
-    }
-
-    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let downloadTask = task as? URLSessionDownloadTask,
-              let id = downloadTask.taskDescription,
-              let index = items.firstIndex(where: { $0.id == id }),
-              let error else { return }
-        let nsError = error as NSError
-        if let resumeData = nsError.userInfo[NSURLSessionDownloadTaskResumeData] as? Data {
-            items[index].resumeData = resumeData
-            items[index].status = "Paused / failed — Resume available"
-        } else {
-            items[index].status = "Failed — Tap Retry"
-        }
-        save()
-    }
-
-    private func save() {
-        let encoded = items.map { item -> [String: Any] in
-            [
-                "id": item.id, "name": item.name, "url": item.url,
-                "progress": item.progress, "status": item.status,
-                "filePath": item.filePath as Any,
-                "resumeData": item.resumeData as Any
-            ]
-        }
-        UserDefaults.standard.set(encoded, forKey: "maple.downloads")
-    }
-
-    private func load() {
-        guard let raw = UserDefaults.standard.array(forKey: "maple.downloads") as? [[String: Any]] else { return }
-        items = raw.compactMap { dict in
-            guard let id = dict["id"] as? String,
-                  let name = dict["name"] as? String,
-                  let url = dict["url"] as? String else { return nil }
-            return Item(id: id, name: name, url: url,
-                        progress: dict["progress"] as? Double ?? 0,
-                        status: dict["status"] as? String ?? "Failed — Tap Retry",
-                        filePath: dict["filePath"] as? String,
-                        resumeData: dict["resumeData"] as? Data)
-        }
-    }
-}
-
-private final class DownloadsViewController: UITableViewController {
-    private let manager: MapleDownloadManager
-    private var items: [MapleDownloadManager.Item] = []
-
-    init(manager: MapleDownloadManager) {
-        self.manager = manager
-        super.init(style: .insetGrouped)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        title = "Downloads"
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "download")
-        refresh()
-    }
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        refresh()
-    }
-
-    private func refresh() {
-        items = manager.downloadItems()
-        tableView.reloadData()
-    }
-
-    @objc private func close() { dismiss(animated: true) }
-
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        items.count
-    }
-
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "download", for: indexPath)
-        let item = items[indexPath.row]
-        cell.textLabel?.text = item.name
-        let percent = Int(item.progress * 100)
-        cell.detailTextLabel?.text = item.status == "Downloading" ? "Downloading · \(percent)%" : item.status
-        cell.accessoryType = item.status == "Completed" ? .checkmark : .disclosureIndicator
-        return cell
-    }
-
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let item = items[indexPath.row]
-        tableView.deselectRow(at: indexPath, animated: true)
-        if item.status.contains("Failed") || item.status.contains("Paused") {
-            manager.retry(item)
-            refresh()
-        } else if item.status == "Completed", let path = item.filePath {
-            let url = URL(fileURLWithPath: path)
-            let controller = UIDocumentInteractionController(url: url)
-            controller.presentPreview(animated: true)
-        }
-    }
-
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-        if editingStyle == .delete {
-            manager.remove(items[indexPath.row])
-            refresh()
-        }
-    }
-}
-
-private final class SettingsViewController: UITableViewController {
-    private let clearHistory: () -> Void
-    private let clearBookmarks: () -> Void
-    private let clearWebData: () -> Void
-    private let showDownloads: () -> Void
-
-    init(clearHistory: @escaping () -> Void, clearBookmarks: @escaping () -> Void,
-         clearWebData: @escaping () -> Void, showDownloads: @escaping () -> Void) {
-        self.clearHistory = clearHistory
-        self.clearBookmarks = clearBookmarks
-        self.clearWebData = clearWebData
-        self.showDownloads = showDownloads
-        super.init(style: .insetGrouped)
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        title = "Settings"
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
-    }
-
-    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
-
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        section == 0 ? 1 : section == 1 ? 1 : 3
-    }
-
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Downloads", "Browsing Data", "About"][section]
-    }
-
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
-        if indexPath.section == 0 {
-            cell.textLabel?.text = "Downloads"
-            cell.accessoryType = .disclosureIndicator
-        } else if indexPath.section == 1 {
-            let labels = ["Clear History", "Clear Bookmarks", "Clear Web Data"]
-            cell.textLabel?.text = labels[indexPath.row]
-            if indexPath.row == 2 { cell.textLabel?.textColor = .systemRed }
-        } else {
-            let labels = ["Maple Browser", "Version", "Search Engine"]
-            let values = ["Team Celeste", "0.1.0", "Google"]
-            cell.textLabel?.text = labels[indexPath.row]
-            cell.detailTextLabel?.text = values[indexPath.row]
-        }
-        return cell
-    }
-
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
-        if indexPath.section == 0 { showDownloads() }
-        else if indexPath.section == 1 {
-            if indexPath.row == 0 { clearHistory() }
-            else if indexPath.row == 1 { clearBookmarks() }
-            else { clearWebData() }
-        }
-    }
-
-    @objc private func close() { dismiss(animated: true) }
-}
