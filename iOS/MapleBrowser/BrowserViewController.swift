@@ -479,10 +479,12 @@ private final class MapleWaveView: UIView {
         let amplitude: CGFloat
         let phase: CGFloat
         let duration: CFTimeInterval
+        let parallax: CGFloat
     }
 
     private var waves: [Wave] = []
     private var didAnimate = false
+    private var lastSize: CGSize = .zero
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -494,16 +496,20 @@ private final class MapleWaveView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func createWaves() {
-        // Three broad, shallow layers: flowing ribbons rather than tall peaks.
+        // Three restrained ribbons. The palette stays Maple: orange/yellow and purple,
+        // with crimson used only as a small warm accent inside the existing layers.
         let palettes: [(UIColor, UIColor)] = [
-            // Match the Maple logo exactly: orange/yellow and purple only.
-            (UIColor(red: 1.00, green: 0.62, blue: 0.08, alpha: 1), UIColor(red: 1.00, green: 0.28, blue: 0.02, alpha: 1)),
-            (UIColor(red: 1.00, green: 0.82, blue: 0.12, alpha: 1), UIColor(red: 0.95, green: 0.42, blue: 0.02, alpha: 1)),
-            (UIColor(red: 0.63, green: 0.28, blue: 0.95, alpha: 1), UIColor(red: 0.34, green: 0.08, blue: 0.72, alpha: 1))
+            (UIColor(red: 1.00, green: 0.64, blue: 0.08, alpha: 1),
+             UIColor(red: 0.88, green: 0.08, blue: 0.07, alpha: 1)), // orange -> crimson
+            (UIColor(red: 1.00, green: 0.82, blue: 0.16, alpha: 1),
+             UIColor(red: 0.96, green: 0.40, blue: 0.03, alpha: 1)), // yellow -> orange
+            (UIColor(red: 0.66, green: 0.32, blue: 0.95, alpha: 1),
+             UIColor(red: 0.36, green: 0.10, blue: 0.72, alpha: 1))  // purple
         ]
-        let bases: [CGFloat] = [0.72, 0.82, 0.91]
-        let amplitudes: [CGFloat] = [0.022, 0.018, 0.015]
-        let durations: [CFTimeInterval] = [12, 15, 18]
+        let bases: [CGFloat] = [0.755, 0.835, 0.905]
+        let amplitudes: [CGFloat] = [0.010, 0.008, 0.007]
+        let durations: [CFTimeInterval] = [18, 22, 26]
+        let parallax: [CGFloat] = [0.010, 0.016, 0.022]
 
         for index in 0..<3 {
             let shape = CAShapeLayer()
@@ -514,26 +520,27 @@ private final class MapleWaveView: UIView {
             gradient.mask = shape
             layer.addSublayer(gradient)
 
-            waves.append(Wave(
-                shape: shape,
-                gradient: gradient,
-                base: bases[index],
-                amplitude: amplitudes[index],
-                phase: CGFloat(index) * 1.8,
-                duration: durations[index]
-            ))
+            waves.append(Wave(shape: shape, gradient: gradient,
+                               base: bases[index], amplitude: amplitudes[index],
+                               phase: CGFloat(index) * 1.15,
+                               duration: durations[index], parallax: parallax[index]))
         }
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        for wave in waves {
-            wave.gradient.frame = bounds
-            wave.shape.frame = bounds
-            wave.shape.path = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
+        guard bounds.size != .zero else { return }
+
+        if lastSize != bounds.size {
+            lastSize = bounds.size
+            for wave in waves {
+                wave.gradient.frame = bounds
+                wave.shape.frame = bounds
+                wave.shape.path = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
+            }
         }
 
-        if !didAnimate && bounds.width > 0 && bounds.height > 0 {
+        if !didAnimate {
             didAnimate = true
             startAnimations()
         }
@@ -546,19 +553,22 @@ private final class MapleWaveView: UIView {
         let a = h * amplitude
         let path = UIBezierPath()
 
-        // Long, smooth sine-like ribbon spanning the full screen.
-        path.move(to: CGPoint(x: 0, y: y))
-        let segments = 8
-        let segmentWidth = w / CGFloat(segments)
+        // One very broad sinusoidal arc per layer; low amplitude prevents visible "flapping".
+        let cycles: CGFloat = 1.15
+        let points = 10
+        path.move(to: CGPoint(x: 0, y: y + sin(phase) * a))
 
-        for i in 0..<segments {
-            let x0 = CGFloat(i) * segmentWidth
-            let x1 = CGFloat(i + 1) * segmentWidth
-            let y0 = y + sin(phase + CGFloat(i) * 1.15) * a
-            let y1 = y + sin(phase + CGFloat(i + 1) * 1.15) * a
-            let c1 = CGPoint(x: x0 + segmentWidth * 0.33, y: y0)
-            let c2 = CGPoint(x: x1 - segmentWidth * 0.33, y: y1)
-            path.addCurve(to: CGPoint(x: x1, y: y1), controlPoint1: c1, controlPoint2: c2)
+        for i in 0..<points {
+            let x0 = w * CGFloat(i) / CGFloat(points)
+            let x1 = w * CGFloat(i + 1) / CGFloat(points)
+            let t0 = CGFloat(i) / CGFloat(points)
+            let t1 = CGFloat(i + 1) / CGFloat(points)
+            let y0 = y + sin(phase + t0 * .pi * 2 * cycles) * a
+            let y1 = y + sin(phase + t1 * .pi * 2 * cycles) * a
+            let dx = x1 - x0
+            path.addCurve(to: CGPoint(x: x1, y: y1),
+                          controlPoint1: CGPoint(x: x0 + dx * 0.34, y: y0),
+                          controlPoint2: CGPoint(x: x1 - dx * 0.34, y: y1))
         }
 
         path.addLine(to: CGPoint(x: w, y: h))
@@ -571,8 +581,8 @@ private final class MapleWaveView: UIView {
         guard !UIAccessibility.isReduceMotionEnabled else { return }
 
         for wave in waves {
-            let current = wave.shape.path ?? makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
-            let target = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase + .pi).cgPath
+            let current = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
+            let target = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase + .pi * 0.85).cgPath
 
             let morph = CABasicAnimation(keyPath: "path")
             morph.fromValue = current
@@ -580,17 +590,17 @@ private final class MapleWaveView: UIView {
             morph.duration = wave.duration
             morph.autoreverses = true
             morph.repeatCount = .infinity
-            morph.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            morph.timingFunction = CAMediaTimingFunction(name: .easeInEaseInEaseOut)
             wave.shape.add(morph, forKey: "maple.wave.morph")
 
             let drift = CABasicAnimation(keyPath: "transform.translation.x")
-            drift.fromValue = -bounds.width * 0.012
-            drift.toValue = bounds.width * 0.012
-            drift.duration = wave.duration * 1.4
+            drift.fromValue = -bounds.width * wave.parallax
+            drift.toValue = bounds.width * wave.parallax
+            drift.duration = wave.duration * 1.25
             drift.autoreverses = true
             drift.repeatCount = .infinity
             drift.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            wave.gradient.add(drift, forKey: "maple.wave.drift")
+            wave.gradient.add(drift, forKey: "maple.wave.parallax")
         }
     }
 }
