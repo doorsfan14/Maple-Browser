@@ -95,6 +95,7 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         contentController.add(self, name: "mapleSearch")
         config.userContentController = contentController
         config.allowsInlineMediaPlayback = true
+        config.applicationNameForUserAgent = "Maple/0.1.0"
         if privateMode { config.websiteDataStore = .nonPersistent() }
 
         let w = WKWebView(frame: .zero, configuration: config)
