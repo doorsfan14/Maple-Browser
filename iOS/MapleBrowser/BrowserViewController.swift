@@ -1264,6 +1264,70 @@ private final class ActionPanelViewController: UIViewController {
 }
 
 
+private final class SettingsViewController: UITableViewController {
+    private let clearHistory: () -> Void
+    private let clearBookmarks: () -> Void
+    private let clearWebData: () -> Void
+    private let showDownloads: () -> Void
+
+    init(clearHistory: @escaping () -> Void, clearBookmarks: @escaping () -> Void,
+         clearWebData: @escaping () -> Void, showDownloads: @escaping () -> Void) {
+        self.clearHistory = clearHistory
+        self.clearBookmarks = clearBookmarks
+        self.clearWebData = clearWebData
+        self.showDownloads = showDownloads
+        super.init(style: .insetGrouped)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Settings"
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(close))
+    }
+
+    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        section == 0 ? 1 : section == 1 ? 1 : 3
+    }
+
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        ["Downloads", "Browsing Data", "About"][section]
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
+        if indexPath.section == 0 {
+            cell.textLabel?.text = "Downloads"
+            cell.accessoryType = .disclosureIndicator
+        } else if indexPath.section == 1 {
+            let labels = ["Clear History", "Clear Bookmarks", "Clear Web Data"]
+            cell.textLabel?.text = labels[indexPath.row]
+            if indexPath.row == 2 { cell.textLabel?.textColor = .systemRed }
+        } else {
+            let labels = ["Maple Browser", "Version", "Search Engine"]
+            let values = ["Team Celeste", "0.1.0", "Google"]
+            cell.textLabel?.text = labels[indexPath.row]
+            cell.detailTextLabel?.text = values[indexPath.row]
+        }
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        if indexPath.section == 0 { showDownloads() }
+        else if indexPath.section == 1 {
+            if indexPath.row == 0 { clearHistory() }
+            else if indexPath.row == 1 { clearBookmarks() }
+            else { clearWebData() }
+        }
+    }
+
+    @objc private func close() { dismiss(animated: true) }
+}
+
 private final class MapleDownloadManager: NSObject, URLSessionDownloadDelegate {
     struct Item {
         var id: String
