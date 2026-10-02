@@ -283,13 +283,14 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         let sourceView: UIView = showingHome ? (homeView ?? content) : webView
         let sourceFrame = sourceView.convert(sourceView.bounds, to: view)
 
-        let presentTabs: (UIImage?) -> Void = { [weak self] snapshot in
+        let presentTabs: ([UIImage?], UIImage?) -> Void = { [weak self] snapshots, snapshot in
             guard let self else { return }
             let controller = MapleTabsViewController(
 
                 tabs: self.tabs,
                 activeIndex: self.activeIndex,
                 sourceSnapshot: snapshot,
+                initialSnapshots: snapshots,
                 sourceFrame: sourceFrame,
                 onSelect: { [weak self] index in
                     guard let self else { return }
@@ -324,11 +325,21 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             let snapshot = renderer.image { _ in
                 home.drawHierarchy(in: home.bounds, afterScreenUpdates: true)
             }
-            presentTabs(snapshot)
+            presentTabs(self.tabs.map { _ in nil }, snapshot)
         } else {
-            // Snapshot the existing WKWebView only for the visual morph. This does not reload it.
-            webView.takeSnapshot(with: WKSnapshotConfiguration()) { snapshot, _ in
-                presentTabs(snapshot)
+            // Capture every live tab while the browser is still visible.
+            // Never snapshot after the switcher covers the web views; WebKit can return a white frame.
+            let group = DispatchGroup()
+            var snapshots = Array<UIImage?>(repeating: nil, count: self.tabs.count)
+            for (index, tab) in self.tabs.enumerated() {
+                group.enter()
+                tab.takeSnapshot(with: WKSnapshotConfiguration()) { image, _ in
+                    snapshots[index] = image
+                    group.leave()
+                }
+            }
+            group.notify(queue: .main) {
+                presentTabs(snapshots, snapshots.indices.contains(self.activeIndex) ? snapshots[self.activeIndex] : nil)
             }
         }
     }
@@ -756,6 +767,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
     private let tabs: [WKWebView]
     private var activeIndex: Int
     private let sourceSnapshot: UIImage?
+    private let initialSnapshots: [UIImage?]
     private let sourceFrame: CGRect
     private let onSelect: (Int) -> Void
     private let onNewTab: (Bool) -> Void
@@ -768,13 +780,14 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
     private var isPresentingTransition = true
     private var isTransitioning = false
 
-    init(tabs: [WKWebView], activeIndex: Int, sourceSnapshot: UIImage?, sourceFrame: CGRect,
+    init(tabs: [WKWebView], activeIndex: Int, sourceSnapshot: UIImage?, initialSnapshots: [UIImage?], sourceFrame: CGRect,
          onSelect: @escaping (Int) -> Void,
          onNewTab: @escaping (Bool) -> Void,
          onClose: @escaping (WKWebView) -> Void) {
         self.tabs = tabs
         self.activeIndex = activeIndex
         self.sourceSnapshot = sourceSnapshot
+        self.initialSnapshots = initialSnapshots
         self.sourceFrame = sourceFrame
         self.onSelect = onSelect
         self.onNewTab = onNewTab
@@ -852,7 +865,6 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                 animator.addCompletion { _ in
                     activeCard.transform = .identity
                     self.isTransitioning = false
-                    self.refreshSnapshots()
                     self.updateCardDepth()
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
@@ -902,7 +914,6 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                     selectedCard.transform = .identity
                     self.cardViews.forEach { $0.alpha = 1 }
                     self.isTransitioning = false
-                    self.refreshSnapshots()
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
                 animator.startAnimation()
@@ -1009,6 +1020,9 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
         for index in tabs.indices {
             addCard(for: index)
+            if index < initialSnapshots.count, let image = initialSnapshots[index], index < previewViews.count {
+                previewViews[index].image = image
+            }
         }
 
         view.layoutIfNeeded()
