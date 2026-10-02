@@ -1445,3 +1445,4 @@ private final class DownloadsViewController: UITableViewController {
             manager.retry(item)
         }
     }
+}
