@@ -321,9 +321,12 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         }
 
         if showingHome, let home = homeView {
+            // Render the native Home view through its layer so Core Animation waves/glows
+            // are preserved; drawHierarchy can flatten animated layers to white.
+            home.layoutIfNeeded()
             let renderer = UIGraphicsImageRenderer(bounds: home.bounds)
-            let snapshot = renderer.image { _ in
-                home.drawHierarchy(in: home.bounds, afterScreenUpdates: true)
+            let snapshot = renderer.image { context in
+                home.layer.render(in: context.cgContext)
             }
             presentTabs(self.tabs.map { _ in nil }, snapshot)
         } else {
@@ -834,19 +837,30 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             cardViews.forEach { $0.alpha = 1 }
 
             let activeCard = cardViews.indices.contains(activeIndex) ? cardViews[activeIndex] : nil
-            let activePreview = previewViews.indices.contains(activeIndex) ? previewViews[activeIndex] : nil
 
             if let activeCard {
-                if let snapshot = sourceSnapshot, let activePreview {
-                    activePreview.image = snapshot
-                }
-
                 let targetRect = activeCard.convert(activeCard.bounds, to: container)
                 let scaleX = sourceFrame.width / max(targetRect.width, 1)
                 let scaleY = sourceFrame.height / max(targetRect.height, 1)
                 let initialScale = min(scaleX, scaleY)
                 let translationX = sourceFrame.midX - targetRect.midX
                 let translationY = sourceFrame.midY - targetRect.midY
+
+                // Home is a transition source, not a tab preview. Keep the real website
+                // snapshot in the card and morph a temporary Home image over it.
+                var morphView: UIImageView?
+                if let snapshot = sourceSnapshot {
+                    let imageView = UIImageView(image: snapshot)
+                    imageView.frame = sourceFrame
+                    imageView.contentMode = .scaleToFill
+                    imageView.clipsToBounds = true
+                    imageView.layer.cornerRadius = 20
+                    imageView.layer.cornerCurve = .continuous
+                    imageView.layer.masksToBounds = true
+                    imageView.layer.zPosition = 4000
+                    container.addSubview(imageView)
+                    morphView = imageView
+                }
 
                 activeCard.transform = CGAffineTransform(translationX: translationX, y: translationY)
                     .scaledBy(x: initialScale, y: initialScale)
@@ -861,9 +875,13 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                 )
                 animator.addAnimations {
                     activeCard.transform = .identity
+                    if let morphView {
+                        morphView.frame = targetRect
+                    }
                 }
                 animator.addCompletion { _ in
                     activeCard.transform = .identity
+                    morphView?.removeFromSuperview()
                     self.isTransitioning = false
                     self.updateCardDepth()
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
