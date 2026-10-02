@@ -1443,3 +1443,5 @@ private final class DownloadsViewController: UITableViewController {
         tableView.deselectRow(at: indexPath, animated: true)
         if item.status.contains("Failed") || item.status.contains("Paused") {
             manager.retry(item)
+        }
+    }
