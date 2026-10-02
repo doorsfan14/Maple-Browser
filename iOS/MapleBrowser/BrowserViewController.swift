@@ -439,9 +439,9 @@ private final class MapleHomeView: UIView {
             wavesView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
             logoView.centerXAnchor.constraint(equalTo: centerXAnchor),
-            logoView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 54),
-            logoView.widthAnchor.constraint(lessThanOrEqualToConstant: 132),
-            logoView.heightAnchor.constraint(equalToConstant: 132),
+            logoView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -70),
+            logoView.widthAnchor.constraint(equalToConstant: 190),
+            logoView.heightAnchor.constraint(equalToConstant: 190),
 
             searchField.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 28),
             searchField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -28),
@@ -475,8 +475,6 @@ private final class MapleWaveView: UIView {
     private struct Wave {
         let shape: CAShapeLayer
         let gradient: CAGradientLayer
-        let startColor: UIColor
-        let endColor: UIColor
         let base: CGFloat
         let amplitude: CGFloat
         let phase: CGFloat
@@ -496,24 +494,18 @@ private final class MapleWaveView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     private func createWaves() {
-        // High-contrast pairings: each wave has a clear color identity instead of one long orange→blue wash.
+        // Three broad, shallow layers: flowing ribbons rather than tall peaks.
         let palettes: [(UIColor, UIColor)] = [
             (UIColor(red: 1.00, green: 0.31, blue: 0.16, alpha: 1), UIColor(red: 0.84, green: 0.03, blue: 0.24, alpha: 1)),
             (UIColor(red: 1.00, green: 0.70, blue: 0.05, alpha: 1), UIColor(red: 1.00, green: 0.24, blue: 0.02, alpha: 1)),
-            (UIColor(red: 0.00, green: 0.74, blue: 1.00, alpha: 1), UIColor(red: 0.00, green: 0.34, blue: 0.92, alpha: 1)),
-            (UIColor(red: 0.47, green: 0.20, blue: 0.95, alpha: 1), UIColor(red: 0.05, green: 0.56, blue: 1.00, alpha: 1)),
-            (UIColor(red: 0.92, green: 0.13, blue: 0.55, alpha: 1), UIColor(red: 0.57, green: 0.08, blue: 0.78, alpha: 1))
+            (UIColor(red: 0.47, green: 0.20, blue: 0.95, alpha: 1), UIColor(red: 0.00, green: 0.47, blue: 0.98, alpha: 1))
         ]
+        let bases: [CGFloat] = [0.72, 0.82, 0.91]
+        let amplitudes: [CGFloat] = [0.022, 0.018, 0.015]
+        let durations: [CFTimeInterval] = [12, 15, 18]
 
-        let bases: [CGFloat] = [0.70, 0.79, 0.86, 0.92, 0.97]
-        let amplitudes: [CGFloat] = [0.035, 0.032, 0.028, 0.024, 0.020]
-        let durations: [CFTimeInterval] = [9.5, 11.5, 13.5, 15.5, 17.5]
-
-        for index in 0..<5 {
+        for index in 0..<3 {
             let shape = CAShapeLayer()
-            shape.fillColor = UIColor.white.cgColor
-            shape.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-
             let gradient = CAGradientLayer()
             gradient.startPoint = CGPoint(x: 0, y: 0.5)
             gradient.endPoint = CGPoint(x: 1, y: 0.5)
@@ -524,11 +516,9 @@ private final class MapleWaveView: UIView {
             waves.append(Wave(
                 shape: shape,
                 gradient: gradient,
-                startColor: palettes[index].0,
-                endColor: palettes[index].1,
                 base: bases[index],
                 amplitude: amplitudes[index],
-                phase: CGFloat(index) * 1.2,
+                phase: CGFloat(index) * 1.8,
                 duration: durations[index]
             ))
         }
@@ -537,8 +527,8 @@ private final class MapleWaveView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         for wave in waves {
-            wave.gradient.frame = bounds.insetBy(dx: -bounds.width * 0.12, dy: -bounds.height * 0.03)
-            wave.shape.frame = wave.gradient.bounds
+            wave.gradient.frame = bounds
+            wave.shape.frame = bounds
             wave.shape.path = makePath(base: wave.base, amplitude: wave.amplitude, phase: wave.phase).cgPath
         }
 
@@ -549,29 +539,31 @@ private final class MapleWaveView: UIView {
     }
 
     private func makePath(base: CGFloat, amplitude: CGFloat, phase: CGFloat) -> UIBezierPath {
-        let w = bounds.width * 1.25
+        let w = bounds.width
         let h = bounds.height
         let y = h * base
         let a = h * amplitude
-        let p = UIBezierPath()
-        p.move(to: CGPoint(x: -w * 0.08, y: y))
+        let path = UIBezierPath()
 
-        let segments = 6
-        for i in 0...segments {
-            let x0 = -w * 0.08 + (w * CGFloat(i) / CGFloat(segments))
-            let x1 = -w * 0.08 + (w * CGFloat(i + 1) / CGFloat(segments))
-            let span = x1 - x0
-            let nextY = y + sin(phase + CGFloat(i + 1) * 1.35) * a
-            let currentY = y + sin(phase + CGFloat(i) * 1.35) * a
-            let c1 = CGPoint(x: x0 + span * 0.33, y: currentY)
-            let c2 = CGPoint(x: x1 - span * 0.33, y: nextY)
-            p.addCurve(to: CGPoint(x: x1, y: nextY), controlPoint1: c1, controlPoint2: c2)
+        // Long, smooth sine-like ribbon spanning the full screen.
+        path.move(to: CGPoint(x: 0, y: y))
+        let segments = 8
+        let segmentWidth = w / CGFloat(segments)
+
+        for i in 0..<segments {
+            let x0 = CGFloat(i) * segmentWidth
+            let x1 = CGFloat(i + 1) * segmentWidth
+            let y0 = y + sin(phase + CGFloat(i) * 1.15) * a
+            let y1 = y + sin(phase + CGFloat(i + 1) * 1.15) * a
+            let c1 = CGPoint(x: x0 + segmentWidth * 0.33, y: y0)
+            let c2 = CGPoint(x: x1 - segmentWidth * 0.33, y: y1)
+            path.addCurve(to: CGPoint(x: x1, y: y1), controlPoint1: c1, controlPoint2: c2)
         }
 
-        p.addLine(to: CGPoint(x: w, y: h))
-        p.addLine(to: CGPoint(x: -w * 0.08, y: h))
-        p.close()
-        return p
+        path.addLine(to: CGPoint(x: w, y: h))
+        path.addLine(to: CGPoint(x: 0, y: h))
+        path.close()
+        return path
     }
 
     private func startAnimations() {
@@ -591,9 +583,9 @@ private final class MapleWaveView: UIView {
             wave.shape.add(morph, forKey: "maple.wave.morph")
 
             let drift = CABasicAnimation(keyPath: "transform.translation.x")
-            drift.fromValue = -bounds.width * 0.025
-            drift.toValue = bounds.width * 0.025
-            drift.duration = wave.duration * 1.35
+            drift.fromValue = -bounds.width * 0.012
+            drift.toValue = bounds.width * 0.012
+            drift.duration = wave.duration * 1.4
             drift.autoreverses = true
             drift.repeatCount = .infinity
             drift.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
