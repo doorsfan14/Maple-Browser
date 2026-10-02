@@ -70,17 +70,18 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
          toolbarButton("plus", #selector(newTab)), toolbarButton("square.on.square", #selector(showTabs)),
          toolbarButton("ellipsis", #selector(showMenu))].forEach { bottomBar.addArrangedSubview($0) }
 
-        bottomChrome.axis = .vertical
-        bottomChrome.spacing = 6
+        bottomChrome.axis = .horizontal
+        bottomChrome.alignment = .center
+        bottomChrome.distribution = .equalSpacing
         bottomChrome.translatesAutoresizingMaskIntoConstraints = false
         bottomChrome.addSubview(bottomChromeBlur)
-        bottomChrome.addArrangedSubview(addressBarContainer)
         bottomChrome.addArrangedSubview(bottomBar)
         bottomChrome.layer.cornerRadius = 20
         bottomChrome.layer.cornerCurve = .continuous
         bottomChrome.clipsToBounds = true
 
         bottomChromeBlur.translatesAutoresizingMaskIntoConstraints = false
+        bottomChromeBlur.isUserInteractionEnabled = false
         NSLayoutConstraint.activate([
             bottomChromeBlur.topAnchor.constraint(equalTo: bottomChrome.topAnchor),
             bottomChromeBlur.leadingAnchor.constraint(equalTo: bottomChrome.leadingAnchor),
@@ -91,13 +92,17 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         content.translatesAutoresizingMaskIntoConstraints = false
         content.backgroundColor = .clear
         view.addSubview(content)
+        view.addSubview(addressBarContainer)
         view.addSubview(bottomChrome)
 
         NSLayoutConstraint.activate([
             content.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             content.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             content.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            content.bottomAnchor.constraint(equalTo: bottomChrome.topAnchor, constant: -10),
+            content.bottomAnchor.constraint(equalTo: addressBarContainer.topAnchor, constant: -10),
+            addressBarContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            addressBarContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            addressBarContainer.bottomAnchor.constraint(equalTo: bottomChrome.topAnchor, constant: -6),
             bottomChrome.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             bottomChrome.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             bottomChrome.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -5),
@@ -298,8 +303,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
                 sourceSnapshot: snapshot,
                 sourceFrame: sourceFrame,
                 onSelect: { [weak self] index in
-                    self?.dismiss(animated: true) {
-                        self?.switchTab(index)
+                    guard let self else { return }
+                    self.activeIndex = index
+                    self.dismiss(animated: true) {
+                        self.showActiveWebView()
                     }
                 },
                 onNewTab: { [weak self] privateMode in
@@ -323,13 +330,11 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             self.present(controller, animated: true)
         }
 
-        if showingHome, let home = homeView {
-            let renderer = UIGraphicsImageRenderer(bounds: home.bounds)
-            let snapshot = renderer.image { _ in
-                home.drawHierarchy(in: home.bounds, afterScreenUpdates: true)
-            }
-            presentTabs(snapshot)
+        if showingHome {
+            // Home is not a browser tab; never put the Home UI into the tab switcher.
+            presentTabs(nil)
         } else {
+            // Snapshot the existing WKWebView only for the visual morph. This does not reload it.
             webView.takeSnapshot(with: WKSnapshotConfiguration()) { snapshot, _ in
                 presentTabs(snapshot)
             }
@@ -819,20 +824,27 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             toView.transform = .identity
 
             isTransitioning = true
-            cardViews.forEach { $0.alpha = 0 }
+            // Keep the cards visible. The active card itself performs the morph.
+            cardViews.forEach { $0.alpha = 1 }
 
+            let activeCard = cardViews.indices.contains(activeIndex) ? cardViews[activeIndex] : nil
             let activePreview = previewViews.indices.contains(activeIndex) ? previewViews[activeIndex] : nil
 
-            if let snapshot = sourceSnapshot, let activePreview {
-                let overlay = UIImageView(image: snapshot)
-                overlay.contentMode = .scaleAspectFit
-                overlay.clipsToBounds = true
-                overlay.backgroundColor = .systemBackground
-                overlay.frame = sourceFrame
-                container.addSubview(overlay)
+            if let activeCard {
+                if let snapshot = sourceSnapshot, let activePreview {
+                    activePreview.image = snapshot
+                }
 
-                let previewBounds = activePreview.convert(activePreview.bounds, to: container)
-                let targetRect = aspectFitRect(imageSize: snapshot.size, in: previewBounds)
+                let targetRect = activeCard.convert(activeCard.bounds, to: container)
+                let scaleX = sourceFrame.width / max(targetRect.width, 1)
+                let scaleY = sourceFrame.height / max(targetRect.height, 1)
+                let initialScale = min(scaleX, scaleY)
+                let translationX = sourceFrame.midX - targetRect.midX
+                let translationY = sourceFrame.midY - targetRect.midY
+
+                activeCard.transform = CGAffineTransform(translationX: translationX, y: translationY)
+                    .scaledBy(x: initialScale, y: initialScale)
+                activeCard.layer.zPosition = 3000
 
                 let animator = UIViewPropertyAnimator(
                     duration: transitionDuration(using: transitionContext),
@@ -842,30 +854,18 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                     )
                 )
                 animator.addAnimations {
-                    overlay.frame = targetRect
-                    overlay.layer.cornerRadius = 18
+                    activeCard.transform = .identity
                 }
                 animator.addCompletion { _ in
-                    overlay.removeFromSuperview()
-                    self.cardViews.forEach { $0.alpha = 1 }
+                    activeCard.transform = .identity
                     self.isTransitioning = false
-                    self.refreshSnapshots()
                     self.updateCardDepth()
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
                 animator.startAnimation()
             } else {
-                UIViewPropertyAnimator.runningPropertyAnimator(
-                    withDuration: transitionDuration(using: transitionContext),
-                    delay: 0,
-                    options: [.curveEaseOut, .beginFromCurrentState]
-                ) {
-                    self.cardViews.forEach { $0.alpha = 1 }
-                } completion: { _ in
-                    self.isTransitioning = false
-                    self.updateCardDepth()
-                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
-                }
+                isTransitioning = false
+                transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
             }
         } else {
             guard let fromView = transitionContext.view(forKey: .from) else {
@@ -874,19 +874,20 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
             }
 
             let selectedIndex = activeIndex
-            let selectedPreview = previewViews.indices.contains(selectedIndex) ? previewViews[selectedIndex] : nil
-            let sourceRect = selectedPreview?.convert(selectedPreview!.bounds, to: container) ?? fromView.bounds
-            let image = selectedPreview?.image ?? sourceSnapshot
+            let selectedCard = cardViews.indices.contains(selectedIndex) ? cardViews[selectedIndex] : nil
 
-            if let image {
-                let overlay = UIImageView(image: image)
-                overlay.contentMode = .scaleAspectFit
-                overlay.clipsToBounds = true
-                overlay.backgroundColor = .systemBackground
-                overlay.frame = sourceRect
-                container.addSubview(overlay)
+            if let selectedCard {
+                let selectedRect = selectedCard.convert(selectedCard.bounds, to: container)
+                let scaleX = sourceFrame.width / max(selectedRect.width, 1)
+                let scaleY = sourceFrame.height / max(selectedRect.height, 1)
+                let targetScale = min(scaleX, scaleY)
+                let translationX = sourceFrame.midX - selectedRect.midX
+                let translationY = sourceFrame.midY - selectedRect.midY
 
-                fromView.alpha = 0
+                fromView.alpha = 1
+                selectedCard.layer.zPosition = 3000
+                isTransitioning = true
+
                 let animator = UIViewPropertyAnimator(
                     duration: transitionDuration(using: transitionContext),
                     timingParameters: UICubicTimingParameters(
@@ -895,28 +896,23 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
                     )
                 )
                 animator.addAnimations {
-                    overlay.frame = self.sourceFrame
-                    overlay.layer.cornerRadius = 0
+                    selectedCard.transform = CGAffineTransform(translationX: translationX, y: translationY)
+                        .scaledBy(x: targetScale, y: targetScale)
+                    self.cardViews.enumerated().forEach { index, card in
+                        if index != selectedIndex {
+                            card.alpha = 0
+                        }
+                    }
                 }
                 animator.addCompletion { _ in
-                    overlay.removeFromSuperview()
-                    fromView.transform = .identity
-                    fromView.alpha = 1
+                    selectedCard.transform = .identity
+                    self.cardViews.forEach { $0.alpha = 1 }
+                    self.isTransitioning = false
                     transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
                 }
                 animator.startAnimation()
             } else {
-                UIViewPropertyAnimator.runningPropertyAnimator(
-                    withDuration: transitionDuration(using: transitionContext),
-                    delay: 0,
-                    options: [.curveEaseIn, .beginFromCurrentState]
-                ) {
-                    fromView.alpha = 0
-                    fromView.transform = CGAffineTransform(scaleX: 0.965, y: 0.965)
-                } completion: { _ in
-                    fromView.transform = .identity
-                    transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
-                }
+                transitionContext.completeTransition(!transitionContext.transitionWasCancelled)
             }
         }
     }
@@ -1102,7 +1098,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         ])
 
         card.transform = .identity
-        card.alpha = 0
+        card.alpha = 1
         card.layer.shouldRasterize = false
     }
 
