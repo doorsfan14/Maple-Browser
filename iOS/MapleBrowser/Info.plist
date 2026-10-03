@@ -20,6 +20,11 @@
     <true/>
     <key>MinimumOSVersion</key>
     <string>13.0</string>
+    <key>UIAppFonts</key>
+    <array>
+        <string>Fonts/PlusJakartaSans-Regular.ttf</string>
+        <string>Fonts/PlusJakartaSans-Bold.ttf</string>
+    </array>
     <key>UILaunchScreen</key>
     <dict/>
     <key>UISupportedInterfaceOrientations</key>
