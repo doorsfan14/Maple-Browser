@@ -2,6 +2,17 @@ import UIKit
 import WebKit
 import Foundation
 
+private enum MapleFont {
+    static func regular(_ size: CGFloat) -> UIFont {
+        UIFont(name: "PlusJakartaSans-Regular", size: size) ?? .systemFont(ofSize: size)
+    }
+
+    static func bold(_ size: CGFloat) -> UIFont {
+        UIFont(name: "PlusJakartaSans-Bold", size: size) ?? .boldSystemFont(ofSize: size)
+    }
+}
+
+
 final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
     private let addressBar = UITextField()
     private let content = UIView()
@@ -505,7 +516,7 @@ private final class MapleHomeView: UIView {
         addSubview(logoView)
 
         searchField.placeholder = "Search or enter a website"
-        searchField.font = .systemFont(ofSize: 17, weight: .regular)
+        searchField.font = MapleFont.regular(17)
         searchField.textColor = .label
         searchField.tintColor = .label
         searchField.backgroundColor = .clear
@@ -944,7 +955,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
         let title = UILabel()
         title.text = "Tabs"
-        title.font = .systemFont(ofSize: 28, weight: .bold)
+        title.font = MapleFont.bold(28)
         title.textColor = .label
         title.translatesAutoresizingMaskIntoConstraints = false
 
@@ -980,7 +991,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
 
         let newButton = UIButton(type: .system)
         newButton.setTitle("＋ New Tab", for: .normal)
-        newButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+        newButton.titleLabel?.font = MapleFont.bold(17)
         newButton.backgroundColor = .secondarySystemBackground
         newButton.setTitleColor(.label, for: .normal)
         newButton.layer.cornerRadius = 12
@@ -1065,7 +1076,7 @@ private final class MapleTabsViewController: UIViewController, UIViewControllerT
         let label = UILabel()
         let title = tabs[index].title?.isEmpty == false ? tabs[index].title! : "New Tab"
         label.text = title
-        label.font = .systemFont(ofSize: 15, weight: .semibold)
+        label.font = MapleFont.bold(15)
         label.textColor = .label
         label.numberOfLines = 1
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -1235,7 +1246,7 @@ private final class ActionPanelViewController: UIViewController {
 
         let title = UILabel()
         title.text = panelTitle
-        title.font = .systemFont(ofSize: 20, weight: .semibold)
+        title.font = MapleFont.bold(20)
         title.textColor = .label
 
         let stack = UIStackView()
