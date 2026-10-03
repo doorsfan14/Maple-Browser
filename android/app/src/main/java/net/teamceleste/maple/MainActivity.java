@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.net.Uri;
@@ -31,10 +32,14 @@ public class MainActivity extends Activity {
     private EditText address;
     private LinearLayout container;
     private int active = 0;
+    private Typeface mapleRegular;
+    private Typeface mapleBold;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences("maple_preferences", MODE_PRIVATE);
+        mapleRegular = Typeface.createFromAsset(getAssets(), "fonts/PlusJakartaSans-Regular.ttf");
+        mapleBold = Typeface.createFromAsset(getAssets(), "fonts/PlusJakartaSans-Bold.ttf");
         buildUI();
         addTab(false, null);
     }
@@ -53,6 +58,7 @@ public class MainActivity extends Activity {
         address.setHint("Search or enter website");
         address.setImeOptions(EditorInfo.IME_ACTION_GO);
         address.setTextSize(16);
+        address.setTypeface(mapleRegular);
         address.setPadding(16, 0, 16, 0);
         GradientDrawable pill = new GradientDrawable();
         pill.setColor(0xFFF1F3F5);
@@ -86,6 +92,7 @@ public class MainActivity extends Activity {
         root.addView(container, new LinearLayout.LayoutParams(-1, 0, 1));
         root.addView(bottom);
 
+        applyMapleFont(root);
         setContentView(root);
 
         address.setOnEditorActionListener((v, actionId, event) -> {
@@ -104,10 +111,22 @@ public class MainActivity extends Activity {
         more.setOnClickListener(v -> showMenu());
     }
 
+    private void applyMapleFont(View view) {
+        if (view instanceof TextView) {
+            TextView text = (TextView) view;
+            text.setTypeface(mapleRegular);
+        }
+        if (view instanceof LinearLayout) {
+            LinearLayout group = (LinearLayout) view;
+            for (int i = 0; i < group.getChildCount(); i++) applyMapleFont(group.getChildAt(i));
+        }
+    }
+
     private Button button(String text) {
         Button b = new Button(this);
         b.setText(text);
         b.setTextSize(20);
+        b.setTypeface(mapleRegular);
         b.setAllCaps(false);
         b.setBackgroundColor(Color.TRANSPARENT);
         return b;
@@ -151,7 +170,7 @@ public class MainActivity extends Activity {
 
     private String homeHTML() {
         return "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        + "<style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:sans-serif;color:white}"
+        + "<style>@font-face{font-family:'Maple';src:url('file:///android_asset/fonts/PlusJakartaSans-Regular.ttf')}@font-face{font-family:'Maple';src:url('file:///android_asset/fonts/PlusJakartaSans-Bold.ttf');font-weight:700}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:'Maple',sans-serif;color:white}"
         + "body{display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(145deg,#0b1728,#163b45 50%,#6b3f2b)}"
         + ".glow{position:absolute;width:360px;height:360px;border-radius:50%;background:rgba(255,196,111,.16);filter:blur(45px);top:-100px;right:-80px}"
         + ".leaf{position:absolute;font-size:170px;opacity:.07;bottom:-35px;left:-20px;transform:rotate(-18deg)}"
