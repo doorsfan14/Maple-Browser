@@ -1,14 +1,34 @@
 import UIKit
 import WebKit
 import Foundation
+import CoreText
 
 private enum MapleFont {
+    private static let registration: Void = {
+        let bundle = Bundle.main
+        for name in ["PlusJakartaSans-Regular", "PlusJakartaSans-Bold"] {
+            if let url = bundle.url(forResource: name, withExtension: "ttf", subdirectory: "Fonts") {
+                CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+            }
+        }
+    }()
+
+    private static func load(_ names: [String], size: CGFloat) -> UIFont {
+        _ = registration
+        for name in names {
+            if let font = UIFont(name: name, size: size) {
+                return font
+            }
+        }
+        return UIFont(name: "HelveticaNeue", size: size) ?? UIFont.systemFont(ofSize: size)
+    }
+
     static func regular(_ size: CGFloat) -> UIFont {
-        UIFont(name: "PlusJakartaSans-Regular", size: size) ?? .systemFont(ofSize: size)
+        load(["PlusJakartaSans-Regular", "Plus Jakarta Sans"], size: size)
     }
 
     static func bold(_ size: CGFloat) -> UIFont {
-        UIFont(name: "PlusJakartaSans-Bold", size: size) ?? .boldSystemFont(ofSize: size)
+        load(["PlusJakartaSans-Bold", "Plus Jakarta Sans Bold"], size: size)
     }
 }
 
