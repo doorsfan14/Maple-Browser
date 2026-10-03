@@ -1,5 +1,14 @@
 plugins { id 'com.android.application' }
 
+def mapleFontSourceDir = rootProject.file("../iOS/MapleBrowser/Fonts")
+def mapleFontAssetDir = file("$projectDir/src/main/assets/fonts")
+
+tasks.register("syncMapleFonts", Copy) {
+    from(mapleFontSourceDir)
+    include "PlusJakartaSans-Regular.ttf", "PlusJakartaSans-Bold.ttf"
+    into(mapleFontAssetDir)
+}
+
 def minSdkVersion = 22
 
 android {
@@ -19,5 +28,7 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 }
+
+tasks.named("preBuild").configure { dependsOn("syncMapleFonts") }
 
 dependencies { }
