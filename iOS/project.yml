@@ -10,6 +10,8 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - path: MapleBrowser
+    resources:
+      - path: MapleBrowser/Fonts
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: net.teamceleste.maple
       PRODUCT_NAME: MapleBrowser
